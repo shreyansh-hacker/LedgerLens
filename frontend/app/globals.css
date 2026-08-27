@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 238 68% 54%;
+    --primary-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --radius: 0.5rem;
+  }
+
+  body {
+    @apply bg-surface-50 text-surface-900 font-sans antialiased min-h-screen flex flex-col selection:bg-primary-100 selection:text-primary-900;
+  }
+}
+
+/* Restrained, elegant utility styling for financial data tables */
+.table-container {
+  @apply w-full overflow-x-auto rounded-lg border border-surface-200 bg-white shadow-sm;
+}
+
+.table-header-cell {
+  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500 bg-surface-50 border-b border-surface-200;
+}
+
+.table-row-cell {
+  @apply px-4 py-3.5 text-sm text-surface-700 border-b border-surface-100 whitespace-nowrap;
+}
