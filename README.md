@@ -37,7 +37,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend Setup
+### 2. Generate Synthetic Demo Data
+```bash
+# From project root:
+python scripts/seed_demo_data.py --count 1000 --seed 42
+```
+
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
