@@ -19,7 +19,10 @@ import enum
 class ReconciliationStatus(str, enum.Enum):
     MATCHED = "MATCHED"
     EXCEPTION = "EXCEPTION"
-    HUMAN_REVIEW = "HUMAN_REVIEW"
+    MISSING_SETTLEMENT = "MISSING_SETTLEMENT"
+    MISSING_BANK_TRANSACTION = "MISSING_BANK_TRANSACTION"
+    DUPLICATE = "DUPLICATE"
+    REVIEW = "REVIEW"
     RESOLVED = "RESOLVED"
     UNRESOLVED = "UNRESOLVED"
 
@@ -156,6 +159,7 @@ class ReconciliationResult(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     payment_id = Column(String(64), ForeignKey("payments.id"), nullable=False, index=True)
+    order_id = Column(String(64), ForeignKey("orders.id"), nullable=True, index=True)
     settlement_id = Column(String(64), ForeignKey("settlements.id"), nullable=True, index=True)
     bank_transaction_id = Column(String(64), ForeignKey("bank_transactions.id"), nullable=True, index=True)
 
@@ -166,12 +170,14 @@ class ReconciliationResult(Base):
     discrepancy_amount = Column(Numeric(14, 2), default=0.00, nullable=False)
 
     matching_score = Column(Numeric(5, 2), nullable=False)  # 0 to 100
+    matching_method = Column(String(64), default="EXACT_REFERENCE", nullable=False)  # EXACT_REFERENCE, DIRECT_ID_LINK, AMOUNT_PROXIMITY, UNMATCHED
     status = Column(SQLEnum(ReconciliationStatus), default=ReconciliationStatus.MATCHED, nullable=False, index=True)
-    discrepancy_type = Column(String(64), nullable=True)  # NORMAL, FEE_MISMATCH, MISSING_BANK, DUPLICATE, UNEXPLAINED
-    ground_truth_scenario = Column(String(64), nullable=True)
+    classification = Column(String(64), default="NONE", nullable=False, index=True)  # NONE, FEE_MISMATCH, TAX_MISMATCH, MISSING_BANK, MISSING_SETTLEMENT, DUPLICATE_SETTLEMENT, REFERENCE_DISCREPANCY, AMOUNT_MISMATCH, SETTLEMENT_DELAY, UNEXPLAINED
+    operational_warning = Column(String(64), nullable=True)  # e.g., SETTLEMENT_DELAY
+    ground_truth_scenario = Column(String(64), nullable=True)  # Populated only during evaluation benchmark runs
 
-    metadata_payload = Column(JSON, nullable=True)
-    reconciled_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    evidence_payload = Column(JSON, nullable=True)
+    reconciled_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
 
     investigation = relationship("InvestigationResult", back_populates="reconciliation_result", uselist=False)
     anomaly = relationship("AnomalyResult", back_populates="reconciliation_result", uselist=False)
@@ -235,3 +241,4 @@ class AuditLog(Base):
 Index("idx_orders_merchant_created", Order.merchant_id, Order.created_at)
 Index("idx_payments_order_captured", Payment.order_id, Payment.captured_at)
 Index("idx_reconciliation_status_discrepancy", ReconciliationResult.status, ReconciliationResult.discrepancy_amount)
+Index("idx_reconciliation_classification", ReconciliationResult.classification)
