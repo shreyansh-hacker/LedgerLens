@@ -22,56 +22,58 @@ LedgerLens enforces strict separation between deterministic financial logic, uns
 +-------------------------------------------------------------------------+
 |                      Groq AI Investigator (Phase 5)                     |
 |  - LLM receives ONLY structured verified facts & anomaly features       |
-|  - Strict JSON schema generation with hallucination guardrails          |
+|  - Strict JSON schema generation with anti-hallucination guardrails     |
 |  - Natural language explanations citing verified evidence               |
+|  - SHA-256 canonical evidence caching & multi-factor confidence scoring |
 +-------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Why Machine Learning (Isolation Forest)?
+## 2. Groq AI Financial Investigator
 
-* **Deterministic Engine** answers: *"Can we mathematically account for this discrepancy using ledger records?"*
-* **ML Anomaly Detector** answers: *"Is this transaction pattern unusual compared to the broader merchant baseline?"*
+### Evidence-First Architecture
+The AI Investigator answers:
+> *"Why did this financial discrepancy happen, based strictly on available evidence?"*
 
-A transaction can be:
-* `MATCHED + LOW ANOMALY`: Standard ₹500 grocery order settled in 24 hours.
-* `MATCHED + HIGH ANOMALY`: ₹120,000 enterprise transaction settled with a 25-day delay (amounts reconcile, but volume and latency are extreme population outliers).
-* `EXCEPTION + HIGH ANOMALY`: ₹50,000 payment with missing settlement batch and zero bank credit.
+The backend sanitizes and packages verified entity records into a canonical JSON payload:
+- **Payment & Order references**
+- **Recorded Fees, GST Taxes, and Refunds**
+- **Settlement Net & Gross calculations**
+- **Bank statement credit and UTR numbers**
+- **ML Anomaly score & feature signals**
 
-### Important Distinction: Anomaly vs Fraud
-The ML layer is an **unsupervised statistical outlier detector, NOT a fraud classifier**. An anomaly indicates statistical irregularity within the merchant's distribution, prompting investigation rather than making unverified fraud allegations.
-
----
-
-## 3. Observable Features (Zero Data Leakage)
-
-The feature matrix is extracted strictly from observable database records:
-1. `payment_amount`: Monetary value in INR.
-2. `amount_ratio_to_merchant_median`: Ratio of transaction amount to merchant baseline median.
-3. `fee_to_amount_ratio`: Ratio of gateway MDR fee to total payment.
-4. `tax_to_fee_ratio`: Ratio of tax deducted to gateway fee (expected: ~0.18).
-5. `discrepancy_to_amount_ratio`: Relative magnitude of discrepancy to total transaction.
-6. `settlement_delay_hours`: Latency between payment capture and settlement time.
-7. `bank_delay_hours`: Latency between settlement batch and bank credit.
-8. `hour_of_day`: Temporal capture distribution (0–23).
-9. `day_of_week`: Day of week (0–6).
-10. `is_settlement_missing`: Binary flag (1.0 if settlement is null).
-11. `is_bank_missing`: Binary flag (1.0 if bank transaction is null).
-12. `is_duplicate`: Binary flag (1.0 if multiple settlements exist).
-13. `matching_confidence`: Multi-pass matcher score (0–100).
-14. `has_operational_warning`: Binary indicator for SLA delays.
-
-*Leakage Prevention*: The feature extractor never accesses, imports, or computes values from `GroundTruthMetadata` or `scenario_type`.
+### Strict Anti-Hallucination Guardrails
+1. **Never Invent Data**: The LLM is strictly prohibited from inventing financial figures, fees, taxes, refunds, or transaction IDs.
+2. **Traceable Fact Grounding**: Every fact claimed in `facts` must reference explicit IDs (e.g. `pay_*`, `fee_*`, `tax_*`, `set_*`, `bnk_*`).
+3. **Escalation on Gaps**: If evidence is missing or unexplained, the AI classifies the record as `HUMAN_REVIEW_REQUIRED` and articulates the missing evidence rather than guessing.
+4. **Conflicting Evidence**: If duplicate settlement records exist, the AI tags `CONFLICTING_EVIDENCE` and recommends `INVESTIGATE_DUPLICATE`.
 
 ---
 
-## 4. Normalization & Severity Thresholds
+## 3. System-Level Composite Confidence Scoring
 
-Isolation Forest decision function scores ($s \in [-0.75, -0.35]$) are normalized to a standard `0–100` scale:
+System confidence does not blindly trust model self-evaluations. It is computed as a multi-factor composite:
 
-$$\text{Normalized Score} = \left( \frac{\max(s) - s}{\max(s) - \min(s)} \right) \times 100$$
+$$\text{System Confidence} = 0.35 \times \text{Calc Agreement} + 0.25 \times \text{Evidence Completeness} + 0.20 \times \text{Matching Score} + 0.20 \times \text{AI Grounding} - \text{Anomaly Penalty}$$
 
-* **LOW Anomaly**: $0.0 \le \text{Score} < 40.0$
-* **MEDIUM Anomaly**: $40.0 \le \text{Score} < 70.0$
-* **HIGH Anomaly**: $70.0 \le \text{Score} \le 100.0$
+* **HIGH Tier**: $\ge 88.0\%$
+* **MEDIUM Tier**: $60.0\% \le \text{Score} < 88.0\%$
+* **LOW Tier**: $< 60.0\%$
+
+---
+
+## 4. SHA-256 Canonical Evidence Caching & Deterministic Fallback
+
+* **Evidence Hashing**: Every evidence payload is canonicalized (sorted keys, compact delimiters) and hashed using SHA-256 (`evidence_hash`). Subsequent requests for identical financial states return instantaneous cached results ($0\text{ ms}$).
+* **Provider Fallback**: If Groq encounters network outages, rate limits, or validation errors (after 1 controlled retry), the system provides an immediate deterministic fallback without service degradation.
+
+---
+
+## 5. Natural Language Finance Copilot
+
+The assistant endpoint (`POST /api/assistant/query`) maps human-language questions to safe, predefined backend query tools (zero raw LLM SQL execution):
+* `get_reconciliation_summary()`
+* `get_largest_discrepancies()`
+* `get_delayed_settlements()`
+* `get_entity_detail()`

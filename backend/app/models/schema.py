@@ -29,9 +29,11 @@ class ReconciliationStatus(str, enum.Enum):
 
 class InvestigationStatus(str, enum.Enum):
     EXPLAINED = "EXPLAINED"
+    PARTIALLY_EXPLAINED = "PARTIALLY_EXPLAINED"
     HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
-    UNRESOLVED = "UNRESOLVED"
+    CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
     MANUALLY_OVERRIDDEN = "MANUALLY_OVERRIDDEN"
+    UNRESOLVED = "UNRESOLVED"
 
 
 class AnomalySeverity(str, enum.Enum):
@@ -178,7 +180,7 @@ class ReconciliationResult(Base):
     matching_score = Column(Numeric(5, 2), nullable=False)  # 0 to 100
     matching_method = Column(String(64), default="EXACT_REFERENCE", nullable=False)  # EXACT_REFERENCE, DIRECT_ID_LINK, AMOUNT_PROXIMITY, UNMATCHED
     status = Column(SQLEnum(ReconciliationStatus), default=ReconciliationStatus.MATCHED, nullable=False, index=True)
-    classification = Column(String(64), default="NONE", nullable=False, index=True)  # NONE, FEE_MISMATCH, TAX_MISMATCH, MISSING_BANK, MISSING_SETTLEMENT, DUPLICATE_SETTLEMENT, REFERENCE_DISCREPANCY, AMOUNT_MISMATCH, SETTLEMENT_DELAY, UNEXPLAINED
+    classification = Column(String(64), default="NONE", nullable=False, index=True)  # NONE, FEE_MISMATCH, TAX_MISMATCH, MISSING_BANK_TRANSACTION, MISSING_SETTLEMENT, DUPLICATE_SETTLEMENT, REFERENCE_ID_DISCREPANCY, AMOUNT_MISMATCH, SETTLEMENT_DELAY, UNEXPLAINED_EXCEPTION
     operational_warning = Column(String(64), nullable=True)  # e.g., SETTLEMENT_DELAY
     ground_truth_scenario = Column(String(64), nullable=True)  # Populated only during evaluation benchmark runs
 
@@ -212,10 +214,13 @@ class InvestigationResult(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     reconciliation_id = Column(String(64), ForeignKey("reconciliation_results.id"), nullable=False, index=True)
+    evidence_hash = Column(String(64), nullable=False, index=True)
     
-    investigation_status = Column(SQLEnum(InvestigationStatus), default=InvestigationStatus.EXPLAINED, nullable=False)
+    investigation_status = Column(SQLEnum(InvestigationStatus), default=InvestigationStatus.EXPLAINED, nullable=False, index=True)
+    summary = Column(Text, nullable=False)
+    facts = Column(JSON, nullable=False)  # List of {statement: str, evidence_ids: List[str]}
     explanation = Column(Text, nullable=False)
-    evidence_used = Column(JSON, nullable=False)
+    evidence_references = Column(JSON, nullable=True)
     missing_evidence = Column(JSON, nullable=True)
     
     ai_confidence = Column(Numeric(5, 2), nullable=False)  # 0 to 100
@@ -226,7 +231,10 @@ class InvestigationResult(Base):
     human_override = Column(Boolean, default=False, nullable=False)
     reviewer_note = Column(Text, nullable=True)
     cached = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    latency_ms = Column(Numeric(8, 2), default=0.00, nullable=False)
+    model_name = Column(String(64), default="llama-3.3-70b-versatile", nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
 
     reconciliation_result = relationship("ReconciliationResult", back_populates="investigation")
 
@@ -245,9 +253,10 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
 
 
-# Compound indexes for fast reconciliation & anomaly lookups
+# Compound indexes for fast lookups
 Index("idx_orders_merchant_created", Order.merchant_id, Order.created_at)
 Index("idx_payments_order_captured", Payment.order_id, Payment.captured_at)
 Index("idx_reconciliation_status_discrepancy", ReconciliationResult.status, ReconciliationResult.discrepancy_amount)
 Index("idx_reconciliation_classification", ReconciliationResult.classification)
 Index("idx_anomaly_severity_score", AnomalyResult.severity, AnomalyResult.normalized_score)
+Index("idx_investigation_status_hash", InvestigationResult.investigation_status, InvestigationResult.evidence_hash)
