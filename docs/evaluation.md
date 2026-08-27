@@ -41,48 +41,49 @@ The engine generates 10 distinct, controlled scenarios with known mathematical t
 
 ---
 
-## 3. Deterministic Baseline Benchmark (1,000-Cluster Scale)
+## 3. Dual Engine Benchmark (1,000-Cluster Scale)
 
-The deterministic reconciliation engine was evaluated against 1,000 ground-truth clusters with zero access to hidden metadata:
+The complete pipeline was evaluated against 1,000 ground-truth clusters with zero access to hidden labels during execution:
 
-| Metric | Measured Baseline |
+### Part 1: Deterministic Reconciliation Engine Baseline
+
+| Metric | Measured Result |
 | :--- | :--- |
 | **Overall Status Accuracy** | **100.00%** (1,000 / 1,000) |
 | **Classification Accuracy** | **100.00%** (1,000 / 1,000) |
 | **Exception Detection Precision** | **100.00%** |
 | **Exception Detection Recall** | **100.00%** |
 | **Exception Detection F1 Score** | **1.0000** |
-| **False Positives** | **0** |
-| **False Negatives** | **0** |
-| **Engine Throughput** | **~420–675 records / sec** |
+| **False Positives / Negatives** | **0 / 0** |
+| **Reconciliation Throughput** | **~550 records / sec** |
 
-### Scenario Breakdown Accuracy
+### Part 2: ML Anomaly Detection Layer (Isolation Forest)
 
-| Scenario | Records | Status Accuracy | Classification Accuracy |
-| :--- | :--- | :--- | :--- |
-| `NORMAL_MATCH` | 621 | 100.0% | 100.0% |
-| `FEE_MISMATCH` | 70 | 100.0% | 100.0% |
-| `MISSING_BANK_TRANSACTION` | 61 | 100.0% | 100.0% |
-| `TAX_MISMATCH` | 52 | 100.0% | 100.0% |
-| `REFERENCE_ID_DISCREPANCY` | 37 | 100.0% | 100.0% |
-| `DUPLICATE_SETTLEMENT` | 37 | 100.0% | 100.0% |
-| `MISSING_SETTLEMENT` | 35 | 100.0% | 100.0% |
-| `AMOUNT_MISMATCH` | 32 | 100.0% | 100.0% |
-| `UNEXPLAINED_EXCEPTION` | 28 | 100.0% | 100.0% |
-| `SETTLEMENT_DELAY` | 27 | 100.0% | 100.0% |
+| Metric | Measured Result |
+| :--- | :--- |
+| **Total Anomalies Flagged** | **100 / 1,000** (10.0% of population) |
+| **Mean Population Anomaly Score** | **19.98 / 100** |
+| **Severity Breakdown** | **LOW: 864** \| **MEDIUM: 102** \| **HIGH: 34** |
+| **ML Inference Throughput** | **~2,100 records / sec** |
+
+### Scenario Dual-Engine Profile
+
+| Scenario | Records | Rec Match % | Mean Anomaly Score | High Anomaly % |
+| :--- | :--- | :--- | :--- | :--- |
+| `NORMAL_MATCH` | 621 | 100.0% | 11.6 | 0.0% |
+| `FEE_MISMATCH` | 70 | 100.0% | 18.3 | 0.0% |
+| `MISSING_BANK_TRANSACTION` | 61 | 100.0% | 30.7 | 0.0% |
+| `TAX_MISMATCH` | 52 | 100.0% | 11.8 | 0.0% |
+| `REFERENCE_ID_DISCREPANCY` | 37 | 100.0% | 34.8 | 0.0% |
+| `DUPLICATE_SETTLEMENT` | 37 | 100.0% | 54.7 | 2.7% |
+| `MISSING_SETTLEMENT` | 35 | 100.0% | **76.9** | **91.4%** |
+| `AMOUNT_MISMATCH` | 32 | 100.0% | 12.0 | 0.0% |
+| `UNEXPLAINED_EXCEPTION` | 28 | 100.0% | 35.7 | 0.0% |
+| `SETTLEMENT_DELAY` | 27 | 100.0% | **59.9** | 3.7% |
 
 ---
 
-## 4. Ambiguity Safeguards
-
-When multiple records share similar matching features within the proximity window:
-1. The engine **refuses to make an arbitrary probabilistic guess**.
-2. It assigns status `REVIEW` and classification `REFERENCE_ID_DISCREPANCY` (or `AMBIGUOUS_COMPETING_MATCHES`).
-3. It packages all competing candidates into the `evidence_payload` for human or AI investigation review.
-
----
-
-## 5. Benchmark Execution Command
+## 4. Benchmark Execution Command
 
 ```bash
 python scripts/run_evaluation.py

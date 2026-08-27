@@ -34,6 +34,12 @@ class InvestigationStatus(str, enum.Enum):
     MANUALLY_OVERRIDDEN = "MANUALLY_OVERRIDDEN"
 
 
+class AnomalySeverity(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class Merchant(Base):
     __tablename__ = "merchants"
 
@@ -189,11 +195,13 @@ class AnomalyResult(Base):
     id = Column(String(64), primary_key=True, index=True)
     reconciliation_id = Column(String(64), ForeignKey("reconciliation_results.id"), nullable=False, index=True)
     
-    is_anomaly = Column(Boolean, default=False, nullable=False)
+    is_anomaly = Column(Boolean, default=False, nullable=False, index=True)
     raw_anomaly_score = Column(Numeric(8, 5), nullable=False)
-    normalized_score = Column(Numeric(5, 2), nullable=False)  # 0 to 100
+    normalized_score = Column(Numeric(5, 2), nullable=False, index=True)  # 0 to 100
+    severity = Column(SQLEnum(AnomalySeverity), default=AnomalySeverity.LOW, nullable=False, index=True)
     detected_features = Column(JSON, nullable=True)
     explanation_signals = Column(JSON, nullable=True)
+    model_version = Column(String(64), default="isolation_forest_v1.0", nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     reconciliation_result = relationship("ReconciliationResult", back_populates="anomaly")
@@ -237,8 +245,9 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
 
 
-# Compound indexes for fast reconciliation lookups
+# Compound indexes for fast reconciliation & anomaly lookups
 Index("idx_orders_merchant_created", Order.merchant_id, Order.created_at)
 Index("idx_payments_order_captured", Payment.order_id, Payment.captured_at)
 Index("idx_reconciliation_status_discrepancy", ReconciliationResult.status, ReconciliationResult.discrepancy_amount)
 Index("idx_reconciliation_classification", ReconciliationResult.classification)
+Index("idx_anomaly_severity_score", AnomalyResult.severity, AnomalyResult.normalized_score)
