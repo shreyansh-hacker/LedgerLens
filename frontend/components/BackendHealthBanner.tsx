@@ -1,29 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { checkBackendHealth } from "@/lib/api";
-import { CheckCircle2, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw, Server } from "lucide-react";
 
-export default function BackendHealthBanner() {
-  const [status, setStatus] = useState<"checking" | "waking" | "ready" | "error">("checking");
-  const [dbConnected, setDbConnected] = useState(false);
+export function BackendHealthBanner() {
+  const [status, setStatus] = useState<"checking" | "healthy" | "waking" | "error">("checking");
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     let timer: NodeJS.Timeout;
 
-    async function pollHealth() {
+    async function verifyHealth() {
       try {
-        const data = await checkBackendHealth();
+        await checkBackendHealth();
         if (isMounted) {
-          setDbConnected(data.database_connected);
-          setStatus("ready");
+          setStatus("healthy");
         }
       } catch (err) {
         if (isMounted) {
           setStatus("waking");
-          // Retry every 4 seconds if backend is spinning up
+          // Retry with backoff
           timer = setTimeout(() => {
             setRetryCount((prev) => prev + 1);
           }, 4000);
@@ -31,7 +29,7 @@ export default function BackendHealthBanner() {
       }
     }
 
-    pollHealth();
+    verifyHealth();
 
     return () => {
       isMounted = false;
@@ -39,40 +37,31 @@ export default function BackendHealthBanner() {
     };
   }, [retryCount]);
 
-  if (status === "ready") {
-    return null; // Silent when everything is normal and running smoothly
+  if (status === "healthy" || status === "checking") {
+    return null;
   }
 
   return (
-    <div className="w-full bg-surface-900 text-white px-4 py-3 border-b border-surface-800 shadow-md">
-      <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <Loader2 className="h-4 w-4 animate-spin text-primary-400" />
-          <span className="font-semibold text-surface-100">
-            Waking up the LedgerLens investigation engine...
-          </span>
-          <span className="text-surface-400 hidden md:inline">
-            (Cold-start tolerant architecture)
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4 text-[11px] text-surface-300">
-          <span className="flex items-center gap-1 text-emerald-400">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Frontend connected
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping"></span> Backend starting
-          </span>
-          <span className="flex items-center gap-1 text-surface-400">
-            ● Database connecting
-          </span>
+          <div className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+          </div>
+          <div>
+            <span className="font-semibold">LedgerLens is connecting to backend services:</span>{" "}
+            <span>Initializing database & intelligence pipeline...</span>
+          </div>
         </div>
 
         <button
-          onClick={() => setRetryCount((c) => c + 1)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-surface-800 hover:bg-surface-700 text-surface-200 text-[11px] font-medium transition-colors"
+          type="button"
+          onClick={() => setRetryCount((prev) => prev + 1)}
+          className="flex items-center gap-1.5 rounded bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-500/30 dark:text-amber-200 transition-colors"
         >
-          <RefreshCw className="h-3 w-3" /> Retry Now
+          <RefreshCw className="h-3 w-3 animate-spin" />
+          <span>Retry Now</span>
         </button>
       </div>
     </div>

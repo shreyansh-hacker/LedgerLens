@@ -4,6 +4,7 @@ from app.api.reconciliation import router as reconciliation_router
 from app.api.anomaly import router as anomaly_router
 from app.api.investigation import router as investigation_router
 from app.api.assistant import router as assistant_router
+from app.api.demo import router as demo_router
 
 api_router = APIRouter()
 
@@ -13,3 +14,4 @@ api_router.include_router(reconciliation_router)
 api_router.include_router(anomaly_router)
 api_router.include_router(investigation_router)
 api_router.include_router(assistant_router)
+api_router.include_router(demo_router)
