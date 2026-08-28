@@ -9,6 +9,10 @@ from app.models.schema import (
     Refund,
     Settlement,
     BankTransaction,
+    ReconciliationResult,
+    AnomalyResult,
+    InvestigationResult,
+    AuditLog,
 )
 from app.core.database import Base, engine
 
@@ -17,21 +21,30 @@ class DatabaseSeeder:
     """Inserts synthetic dataset into database tables via SQLAlchemy ORM."""
 
     @staticmethod
+    def reset_database(db: Session) -> None:
+        """Deletes all table records in strict reverse-dependency order."""
+        Base.metadata.create_all(bind=engine)
+        db.query(AuditLog).delete()
+        db.query(InvestigationResult).delete()
+        db.query(AnomalyResult).delete()
+        db.query(ReconciliationResult).delete()
+        db.query(BankTransaction).delete()
+        db.query(Settlement).delete()
+        db.query(Refund).delete()
+        db.query(Tax).delete()
+        db.query(Fee).delete()
+        db.query(Payment).delete()
+        db.query(Order).delete()
+        db.query(Merchant).delete()
+        db.commit()
+
+    @staticmethod
     def seed(db: Session, dataset: Dict[str, Any], clear_existing: bool = True) -> Dict[str, int]:
         # Ensure schema tables exist
         Base.metadata.create_all(bind=engine)
 
         if clear_existing:
-            # Delete children first to preserve foreign key integrity
-            db.query(BankTransaction).delete()
-            db.query(Settlement).delete()
-            db.query(Refund).delete()
-            db.query(Tax).delete()
-            db.query(Fee).delete()
-            db.query(Payment).delete()
-            db.query(Order).delete()
-            db.query(Merchant).delete()
-            db.commit()
+            DatabaseSeeder.reset_database(db)
 
         # 1. Merchants
         for m in dataset.get("merchants", []):
@@ -65,8 +78,6 @@ class DatabaseSeeder:
 
         # 7. Settlements
         for s in dataset.get("settlements", []):
-            # For reference discrepancy scenarios, payment_id might be set to pay_unknown
-            # If foreign key check is strict on SQLite/Postgres, ensure we only link valid IDs or None
             db.add(Settlement(
                 id=s["id"],
                 payment_id=s["payment_id"] if not s["payment_id"].startswith("pay_unknown") else None,

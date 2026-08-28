@@ -6,12 +6,16 @@ import {
   getReconciliationSummary,
   getReconciliationResults,
   getAnomalySummary,
+  getFeaturedCases,
+  resetDemoDatabase,
   ReconciliationSummary,
   ReconciliationItem,
   AnomalySummary,
+  FeaturedCase,
 } from "@/lib/api";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { DemoLoaderModal } from "@/components/DemoLoaderModal";
 import {
   FileSpreadsheet,
   AlertTriangle,
@@ -22,6 +26,9 @@ import {
   RefreshCw,
   Database,
   ArrowRight,
+  Sparkles,
+  Trash2,
+  Compass,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -29,26 +36,44 @@ export default function DashboardPage() {
   const [recSummary, setRecSummary] = useState<ReconciliationSummary | null>(null);
   const [anomSummary, setAnomSummary] = useState<AnomalySummary | null>(null);
   const [topExceptions, setTopExceptions] = useState<ReconciliationItem[]>([]);
+  const [featuredCases, setFeaturedCases] = useState<FeaturedCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   async function loadDashboardData() {
     setLoading(true);
     setError(null);
     try {
-      const [sumData, anomData, items] = await Promise.all([
+      const [sumData, anomData, items, featured] = await Promise.all([
         getReconciliationSummary(),
         getAnomalySummary().catch(() => null),
         getReconciliationResults({ has_discrepancy: true, limit: 6 }).catch(() => []),
+        getFeaturedCases().catch(() => []),
       ]);
 
       setRecSummary(sumData);
       setAnomSummary(anomData);
       setTopExceptions(items);
+      setFeaturedCases(featured);
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard metrics");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResetDemo() {
+    if (!confirm("Are you sure you want to reset demo data? All temporary records will be cleared.")) return;
+    setResetting(true);
+    try {
+      await resetDemoDatabase();
+      await loadDashboardData();
+    } catch (err: any) {
+      alert(`Reset failed: ${err.message}`);
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -62,9 +87,16 @@ export default function DashboardPage() {
   const matchRate = recSummary?.match_rate_percentage || 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+      <DemoLoaderModal
+        isOpen={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        onSuccess={loadDashboardData}
+        forceReset={true}
+      />
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Financial Operations
@@ -85,19 +117,32 @@ export default function DashboardPage() {
             <span>Refresh</span>
           </button>
 
-          <Link
-            href="/reconciliation"
+          {totalRecords > 0 && (
+            <button
+              type="button"
+              onClick={handleResetDemo}
+              disabled={resetting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Reset Demo</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDemoModalOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors"
           >
             <Database className="h-3.5 w-3.5" />
-            <span>Load Demo Data</span>
-          </Link>
+            <span>{totalRecords > 0 ? "Reload 1k Dataset" : "Load Demo Data"}</span>
+          </button>
         </div>
       </div>
 
       {/* Error state */}
       {error && (
-        <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
           <div className="flex items-center justify-between">
             <span>Unable to load live backend data: {error}</span>
             <button
@@ -112,7 +157,7 @@ export default function DashboardPage() {
 
       {/* Empty State */}
       {!loading && !error && totalRecords === 0 && (
-        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/40 p-12 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/40 p-12 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 mb-4">
             <Database className="h-6 w-6" />
           </div>
@@ -120,23 +165,59 @@ export default function DashboardPage() {
             No Reconciliation Records Found
           </h3>
           <p className="mt-2 text-xs text-slate-500 max-w-sm mx-auto">
-            Load the 1,000-cluster synthetic benchmark dataset to inspect live multi-pass reconciliation, anomaly scoring, and Groq AI investigations.
+            Click below to initialize the 1,000-cluster benchmark dataset and test live multi-pass matching and AI investigations.
           </p>
           <div className="mt-6">
-            <Link
-              href="/reconciliation"
+            <button
+              type="button"
+              onClick={() => setDemoModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition-all"
             >
-              <span>Go to Demo Center</span>
+              <span>Load 1,000-Cluster Demo</span>
               <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            </button>
           </div>
         </div>
       )}
 
       {/* Main Content */}
       {totalRecords > 0 && (
-        <div className="mt-6 space-y-6">
+        <div className="space-y-6">
+          {/* Featured Case / Guided Entry Banner */}
+          {featuredCases.length > 0 && (
+            <div className="rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50/80 via-white to-indigo-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/30 p-5 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 text-white px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase">
+                      <Compass className="h-3 w-3" />
+                      <span>Start Exploring</span>
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">
+                      Recommended Judge Investigation
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    {featuredCases[0].headline}
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl">
+                    Payment reference <code className="font-mono text-indigo-600 dark:text-indigo-400">{featuredCases[0].payment_reference}</code> has an observable variance with {featuredCases[0].system_confidence.toFixed(1)}% system confidence.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/investigations/${featuredCases[0].reconciliation_id}`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-indigo-500 transition-all hover:scale-105"
+                  >
+                    <span>Inspect Evidence Trail</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Top KPI Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard

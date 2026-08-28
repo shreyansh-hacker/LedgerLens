@@ -17,10 +17,12 @@ import {
   Database,
   Sparkles,
 } from "lucide-react";
+import { DemoLoaderModal } from "@/components/DemoLoaderModal";
 
 export function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
 
   const navLinks = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -33,6 +35,12 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/90">
+      <DemoLoaderModal
+        isOpen={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        forceReset={false}
+      />
+
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <div className="flex items-center gap-6">
@@ -76,14 +84,15 @@ export function Navbar() {
 
         {/* Right side status / CTA */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Demo Mode Badge */}
-          <Link
-            href="/reconciliation"
-            className="flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50/80 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100/80 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300 transition-colors shadow-xs"
+          {/* Demo Mode Button */}
+          <button
+            type="button"
+            onClick={() => setDemoModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50/80 px-3 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100/80 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300 transition-colors shadow-xs"
           >
-            <Database className="h-3 w-3 text-indigo-500" />
-            <span>Demo Mode</span>
-          </Link>
+            <Database className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Demo Mode (1k Benchmark)</span>
+          </button>
         </div>
 
         {/* Mobile menu button */}
@@ -122,6 +131,20 @@ export function Navbar() {
                 </Link>
               );
             })}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setDemoModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-950 py-2.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300"
+              >
+                <Database className="h-4 w-4 text-indigo-500" />
+                <span>Initialize 1k Demo</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

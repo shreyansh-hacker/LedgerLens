@@ -34,6 +34,7 @@ import {
   Tag,
   Cpu,
   History,
+  Info,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -51,11 +52,13 @@ export default function InvestigationDetailPage() {
   const [reviewNote, setReviewNote] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   async function loadData() {
     if (!recId) return;
     setLoading(true);
     setError(null);
+    setAiError(null);
     try {
       // 1. Fetch Reconciliation Record
       const rec = await getReconciliationResultById(recId);
@@ -67,7 +70,11 @@ export default function InvestigationDetailPage() {
         inv = await getInvestigationById(rec.id);
       } catch {
         // If not investigated yet, auto-investigate
-        inv = await runInvestigation(rec.id, false);
+        try {
+          inv = await runInvestigation(rec.id, false);
+        } catch (err: any) {
+          setAiError(err.message || "AI investigation temporarily unavailable");
+        }
       }
       setInvItem(inv);
 
@@ -99,13 +106,14 @@ export default function InvestigationDetailPage() {
   async function handleForceReinvestigate() {
     if (!recItem) return;
     setInvestigating(true);
+    setAiError(null);
     try {
       const inv = await runInvestigation(recItem.id, true);
       setInvItem(inv);
       const logs = await getInvestigationAuditLogs(inv.id);
       setAuditLogs(logs);
     } catch (err: any) {
-      alert(`Investigation failed: ${err.message}`);
+      setAiError(err.message || "Groq AI investigation failed. Deterministic reconciliation remains active.");
     } finally {
       setInvestigating(false);
     }
@@ -198,7 +206,7 @@ export default function InvestigationDetailPage() {
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors"
           >
             <Sparkles className={clsx("h-3.5 w-3.5", investigating && "animate-spin")} />
-            <span>{investigating ? "Re-Investigating with Groq..." : "Re-Run AI Investigation"}</span>
+            <span>{investigating ? "Analyzing Evidence..." : "Run AI Investigation"}</span>
           </button>
         </div>
       </div>
@@ -235,6 +243,22 @@ export default function InvestigationDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: AI Investigation Report & Confidence (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
+          {/* AI Failure Notice if Groq is unavailable */}
+          {aiError && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900/60 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Info className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <span>AI Investigation Temporarily Unavailable</span>
+              </div>
+              <p className="leading-relaxed">
+                Deterministic calculations, multi-pass matching, and observable evidence chains remain fully functional.
+              </p>
+              <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                Recommended Action: HUMAN_REVIEW (Inspect side-by-side calculation and timeline)
+              </div>
+            </div>
+          )}
+
           {/* AI Investigation Report Card */}
           {invItem && (
             <div className="rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-white dark:bg-slate-900/80 p-6 shadow-sm space-y-5">

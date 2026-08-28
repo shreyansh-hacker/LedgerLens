@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -15,8 +15,11 @@ import {
   Cpu,
   Lock,
 } from "lucide-react";
+import { DemoLoaderModal } from "@/components/DemoLoaderModal";
 
 export default function LandingPage() {
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+
   const steps = [
     {
       num: "01",
@@ -47,6 +50,11 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col">
+      <DemoLoaderModal
+        isOpen={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+      />
+
       {/* Hero Section */}
       <section className="relative overflow-hidden border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -71,14 +79,15 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/reconciliation"
+              <button
+                type="button"
+                onClick={() => setDemoModalOpen(true)}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg hover:bg-indigo-500 transition-all hover:scale-105"
               >
                 <Database className="h-4 w-4" />
                 <span>Try Live Demo</span>
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
               <Link
                 href="/dashboard"
                 className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all"
@@ -227,13 +236,14 @@ export default function LandingPage() {
             Load 1,000 synthetic transaction clusters spanning 10 controlled scenarios, run reconciliation, and inspect live AI investigations in seconds.
           </p>
           <div className="mt-6">
-            <Link
-              href="/reconciliation"
+            <button
+              type="button"
+              onClick={() => setDemoModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-indigo-900 shadow-md hover:bg-indigo-50 transition-all hover:scale-105"
             >
               <span>Launch Demo Center</span>
               <ArrowRight className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>

@@ -6,9 +6,11 @@ import {
   loadDemoDataset,
   runReconciliation,
   getReconciliationSummary,
+  resetDemoDatabase,
   ReconciliationSummary,
   DemoLoadResponse,
 } from "@/lib/api";
+import { DemoLoaderModal } from "@/components/DemoLoaderModal";
 import {
   Database,
   Upload,
@@ -19,61 +21,40 @@ import {
   ArrowRight,
   Sparkles,
   Sliders,
+  Trash2,
 } from "lucide-react";
 import { clsx } from "clsx";
 
 export default function ReconciliationPage() {
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
-  const [loadingDemo, setLoadingDemo] = useState(false);
-  const [demoResult, setDemoResult] = useState<DemoLoadResponse | null>(null);
-  const [demoError, setDemoError] = useState<string | null>(null);
-  const [demoSteps, setDemoSteps] = useState<string[]>([]);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const [slaWindow, setSlaWindow] = useState(7);
   const [proximityWindow, setProximityWindow] = useState(5);
   const [runningRec, setRunningRec] = useState(false);
 
+  async function loadSummary() {
+    try {
+      const s = await getReconciliationSummary();
+      setSummary(s);
+    } catch {}
+  }
+
   useEffect(() => {
-    getReconciliationSummary()
-      .then(setSummary)
-      .catch(() => null);
+    loadSummary();
   }, []);
 
-  async function handleLoadDemo() {
-    setLoadingDemo(true);
-    setDemoError(null);
-    setDemoResult(null);
-    setDemoSteps(["Generating 1,000 synthetic transaction clusters with ground truth..."]);
-
+  async function handleResetDemo() {
+    if (!confirm("Are you sure you want to reset demo data?")) return;
+    setResetting(true);
     try {
-      // Step simulation for visual feedback while API executes
-      const stepTimer1 = setTimeout(() => {
-        setDemoSteps((prev) => [...prev, "Seeding orders, payments, fees, settlements, and bank statements..."]);
-      }, 400);
-
-      const stepTimer2 = setTimeout(() => {
-        setDemoSteps((prev) => [...prev, "Executing deterministic multi-pass reconciliation..."]);
-      }, 1000);
-
-      const stepTimer3 = setTimeout(() => {
-        setDemoSteps((prev) => [...prev, "Fitting Isolation Forest ML anomaly detector..."]);
-      }, 1600);
-
-      const res = await loadDemoDataset(1000, 42, true);
-
-      clearTimeout(stepTimer1);
-      clearTimeout(stepTimer2);
-      clearTimeout(stepTimer3);
-
-      setDemoSteps((prev) => [...prev, "✓ Demo dataset loaded and reconciled successfully!"]);
-      setDemoResult(res);
-
-      const updatedSum = await getReconciliationSummary();
-      setSummary(updatedSum);
+      await resetDemoDatabase();
+      await loadSummary();
     } catch (err: any) {
-      setDemoError(err.message || "Failed to load demo dataset");
+      alert(`Reset failed: ${err.message}`);
     } finally {
-      setLoadingDemo(false);
+      setResetting(false);
     }
   }
 
@@ -85,8 +66,7 @@ export default function ReconciliationPage() {
         sla_delay_threshold_days: slaWindow,
         recalculate_all: true,
       });
-      const updatedSum = await getReconciliationSummary();
-      setSummary(updatedSum);
+      await loadSummary();
     } catch (err: any) {
       alert(`Reconciliation error: ${err.message}`);
     } finally {
@@ -96,17 +76,40 @@ export default function ReconciliationPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <DemoLoaderModal
+        isOpen={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        onSuccess={loadSummary}
+        forceReset={true}
+      />
+
       {/* Header */}
-      <div className="pb-6 border-b border-slate-200 dark:border-slate-800">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Data Ingestion & Pipeline
-        </span>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
-          Reconciliation Center
-        </h1>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Load standard synthetic benchmark clusters or upload custom gateway and bank statement CSV files.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Data Ingestion & Pipeline
+          </span>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
+            Reconciliation Center
+          </h1>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Load standard synthetic benchmark clusters or upload custom gateway and bank statement CSV files.
+          </p>
+        </div>
+
+        {summary && summary.total_records > 0 && (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleResetDemo}
+              disabled={resetting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Reset Demo</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -126,33 +129,20 @@ export default function ReconciliationPage() {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Instantly populates 1,000 realistic e-commerce transactions across 10 controlled scenarios (Clean Matches, Fee Surges, Missing GST, Delayed Settlements, Unexplained Discrepancies) with full ML and AI analysis.
+              Instantly populates 1,000 realistic e-commerce transactions across 10 controlled scenarios (Clean Matches, Fee Surges, Missing GST, Delayed Settlements, Unexplained Discrepancies) with full ML anomaly scoring and AI analysis.
             </p>
 
-            {/* Live Progress Steps */}
-            {demoSteps.length > 0 && (
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40 text-xs font-mono space-y-1.5">
-                {demoSteps.map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                    <span className="text-indigo-500">›</span>
-                    <span>{step}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Success Box */}
-            {demoResult && (
+            {summary && summary.total_records > 0 && (
               <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20 text-xs text-emerald-900 dark:text-emerald-200">
                 <div className="flex items-center gap-2 font-bold mb-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span>1,000 Clusters Successfully Loaded & Reconciled ({demoResult.duration_ms}ms)</span>
+                  <span>Active Benchmark Dataset Ready</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-mono mt-2">
-                  <div>Match Rate: {demoResult.summary.match_rate}</div>
-                  <div>Matched: {demoResult.summary.matched_count}</div>
-                  <div>Exceptions: {demoResult.summary.exception_count}</div>
-                  <div>Anomalies Flagged: {demoResult.summary.anomalies_count}</div>
+                  <div>Records: {summary.total_records}</div>
+                  <div>Match Rate: {summary.match_rate_percentage.toFixed(1)}%</div>
+                  <div>Exceptions: {summary.exception_count}</div>
+                  <div>Discrepancy: ₹{parseFloat(summary.total_discrepancy_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
                 </div>
                 <div className="mt-4 flex gap-3">
                   <Link
@@ -172,33 +162,16 @@ export default function ReconciliationPage() {
                 </div>
               </div>
             )}
-
-            {/* Error Box */}
-            {demoError && (
-              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
-                <span>Error: {demoError}</span>
-              </div>
-            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
-              onClick={handleLoadDemo}
-              disabled={loadingDemo}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-md hover:bg-indigo-500 disabled:opacity-50 transition-all hover:scale-[1.01]"
+              onClick={() => setDemoModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-md hover:bg-indigo-500 transition-all hover:scale-[1.01]"
             >
-              {loadingDemo ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Generating & Reconciling 1,000 Records...</span>
-                </>
-              ) : (
-                <>
-                  <Database className="h-4 w-4" />
-                  <span>Load Demo Dataset (1,000 Clusters)</span>
-                </>
-              )}
+              <Database className="h-4 w-4" />
+              <span>{summary && summary.total_records > 0 ? "Re-Initialize 1k Dataset" : "Load Demo Dataset (1,000 Clusters)"}</span>
             </button>
           </div>
         </div>
