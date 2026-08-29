@@ -66,7 +66,7 @@ class GroqProvider(AIProvider):
         timeout_seconds: float = 20.0,
     ):
         self.api_key = api_key or settings.GROQ_API_KEY
-        self.model_name = model_name or settings.GROQ_MODEL or "llama-3.3-70b-versatile"
+        self.model_name = model_name or settings.GROQ_MODEL or "qwen/qwen3.8-27b"
         self.timeout_seconds = timeout_seconds
         self.client = Groq(api_key=self.api_key) if self.api_key else None
 
@@ -79,32 +79,42 @@ class GroqProvider(AIProvider):
         start_time = time.perf_counter()
         raw_text = ""
 
-        for attempt in range(2):  # 1 initial attempt + 1 retry on malformed JSON
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": INVESTIGATOR_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.0,  # Zero temperature for maximum deterministic reasoning
-                    timeout=self.timeout_seconds,
-                )
+        # Attempt candidate models in order: configured model -> verified fallback
+        candidate_models = [self.model_name]
+        if self.model_name != "qwen/qwen3.8-27b":
+            candidate_models.append("qwen/qwen3.8-27b")
 
-                raw_text = response.choices[0].message.content or "{}"
-                data = json.loads(raw_text)
+        for model in candidate_models:
+            for attempt in range(2):  # 1 initial attempt + 1 retry on malformed JSON
+                try:
+                    response = self.client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": INVESTIGATOR_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.0,  # Zero temperature for maximum deterministic reasoning
+                        timeout=self.timeout_seconds,
+                    )
 
-                # Validate against Pydantic schema
-                structured_res = StructuredAIInvestigation(**data)
-                latency_ms = (time.perf_counter() - start_time) * 1000.0
-                return structured_res, raw_text, round(latency_ms, 2)
+                    raw_text = response.choices[0].message.content or "{}"
+                    data = json.loads(raw_text)
 
-            except Exception as e:
-                if attempt == 1:
+                    # Validate against Pydantic schema
+                    structured_res = StructuredAIInvestigation(**data)
                     latency_ms = (time.perf_counter() - start_time) * 1000.0
-                    return None, f"ERROR: {str(e)}", round(latency_ms, 2)
-                time.sleep(0.5)
+                    return structured_res, raw_text, round(latency_ms, 2)
+
+                except Exception as e:
+                    err_msg = str(e)
+                    if "model_not_found" in err_msg or "404" in err_msg:
+                        # Break inner loop to try next candidate model
+                        break
+                    if attempt == 1:
+                        latency_ms = (time.perf_counter() - start_time) * 1000.0
+                        return None, f"ERROR: {err_msg}", round(latency_ms, 2)
+                    time.sleep(0.5)
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0
         return None, raw_text, round(latency_ms, 2)

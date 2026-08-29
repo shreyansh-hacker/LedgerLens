@@ -55,19 +55,33 @@ class FinanceAssistant:
 
         prompt_context = f"User Question: {user_query}\n\nRetrieved Database Facts:\n{json.dumps(retrieved_data, indent=2, default=str)}"
 
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.GROQ_MODEL or "llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt_context},
-                ],
-                temperature=0.1,
-                max_tokens=600,
-            )
-            answer = response.choices[0].message.content or "No response generated."
-        except Exception as e:
-            answer = f"Found relevant reconciliation records, but LLM summarization encountered an issue ({str(e)})."
+        candidate_models = [settings.GROQ_MODEL or "qwen/qwen3.8-27b"]
+        if "qwen/qwen3.8-27b" not in candidate_models:
+            candidate_models.append("qwen/qwen3.8-27b")
+
+        answer = ""
+        for model in candidate_models:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt_context},
+                    ],
+                    temperature=0.1,
+                    max_tokens=600,
+                )
+                answer = response.choices[0].message.content or "No response generated."
+                break
+            except Exception as e:
+                err_msg = str(e)
+                if "model_not_found" in err_msg or "404" in err_msg:
+                    continue
+                answer = f"Found relevant reconciliation records, but LLM summarization encountered an issue ({err_msg})."
+                break
+
+        if not answer:
+            answer = f"**Retrieved Context**: Found {len(retrieved_data)} data points for your query."
 
         return AssistantQueryResponse(
             query=user_query,
@@ -84,124 +98,99 @@ class FinanceAssistant:
         db: Session,
         merchant_id: Optional[str] = None
     ) -> tuple[str, Dict[str, Any], List[str]]:
-        q = user_query.lower()
+        """
+        Extracts intent from query and runs strict deterministic DB lookup.
+        Prevents LLM from writing arbitrary SQL.
+        """
+        q_lower = user_query.lower()
+        sources = []
 
-        # Check for specific ID search: pay_*, ord_*, rec_*, inv_*, set_*
-        id_match = re.search(r"\b(pay_\w+|ord_\w+|rec_\w+|inv_\w+|set_\w+|bnk_\w+|clu_\w+)\b", q)
+        # 1. Look for specific payment / transaction IDs (e.g., pay_00006)
+        id_match = re.search(r"(pay_[a-zA-Z0-9_-]+|ord_[a-zA-Z0-9_-]+|set_[a-zA-Z0-9_-]+|rec_[a-zA-Z0-9_-]+)", user_query)
         if id_match:
-            entity_id = id_match.group(1)
-            return self._tool_get_entity_detail(entity_id=entity_id, db=db)
+            entity_ref = id_match.group(1)
+            rec = None
+            if entity_ref.startswith("pay_"):
+                rec = db.query(ReconciliationResult).filter(ReconciliationResult.payment_id == entity_ref).first()
+            elif entity_ref.startswith("rec_"):
+                rec = db.query(ReconciliationResult).filter(ReconciliationResult.id == entity_ref).first()
+            elif entity_ref.startswith("set_"):
+                rec = db.query(ReconciliationResult).filter(ReconciliationResult.settlement_id == entity_ref).first()
 
-        # Intent 1: Delayed settlements
-        if "delay" in q or "latency" in q or "sla" in q:
-            return self._tool_get_delayed_settlements(db=db, limit=5)
+            if rec:
+                sources.append(rec.payment_id)
+                inv = db.query(InvestigationResult).filter(InvestigationResult.reconciliation_id == rec.id).first()
+                return (
+                    "GET_ENTITY_DETAIL",
+                    {
+                        "reconciliation_id": rec.id,
+                        "payment_id": rec.payment_id,
+                        "status": rec.status.value if hasattr(rec.status, "value") else str(rec.status),
+                        "classification": rec.classification,
+                        "expected_settlement": f"₹{rec.expected_settlement_amount}",
+                        "actual_bank_credit": f"₹{rec.actual_bank_amount}" if rec.actual_bank_amount else "Missing",
+                        "discrepancy_amount": f"₹{rec.discrepancy_amount}",
+                        "ai_summary": inv.summary if inv else "No preloaded AI investigation",
+                        "recommended_action": inv.recommended_action if inv else "Inspect Evidence",
+                    },
+                    sources
+                )
 
-        # Intent 2: Unresolved or Largest Discrepancies
-        if "largest" in q or "biggest" in q or "top" in q or "unexplained" in q:
-            return self._tool_get_largest_discrepancies(db=db, limit=5)
+        # 2. Delayed Settlements Query
+        if any(w in q_lower for w in ["delayed", "delay", "late", "sla"]):
+            delayed_recs = db.query(ReconciliationResult).filter(
+                ReconciliationResult.operational_warning.isnot(None)
+            ).limit(5).all()
+            delayed_list = [{"reconciliation_id": r.id, "payment_id": r.payment_id, "warning": r.operational_warning} for r in delayed_recs]
+            return (
+                "GET_DELAYED_SETTLEMENTS",
+                {
+                    "delayed_count": len(delayed_list),
+                    "delayed_settlements": delayed_list,
+                },
+                [r.payment_id for r in delayed_recs]
+            )
 
-        # Intent 3: High level summary / unresolved amount
-        if "summary" in q or "unresolved" in q or "how much" in q or "overview" in q or "total" in q:
-            return self._tool_get_summary(db=db, merchant_id=merchant_id)
+        # 3. Aggregated Unresolved / Exceptions Query
+        if any(w in q_lower for w in ["unresolved", "exception", "discrepancy", "unreconciled", "missing", "difference"]):
+            summary = DeterministicReconciliationEngine.compute_summary(db=db, merchant_id=merchant_id)
+            unresolved_recs = db.query(ReconciliationResult).filter(
+                ReconciliationResult.status != "MATCHED"
+            ).limit(5).all()
 
-        # Default fallback tool: get summary + top exceptions
-        return self._tool_get_summary_with_exceptions(db=db, merchant_id=merchant_id)
+            sample_list = []
+            for r in unresolved_recs:
+                sample_list.append({
+                    "reconciliation_id": r.id,
+                    "payment_id": r.payment_id,
+                    "discrepancy": f"₹{r.discrepancy_amount}",
+                    "classification": r.classification
+                })
+                sources.append(r.payment_id)
 
-    def _tool_get_summary(self, db: Session, merchant_id: Optional[str]) -> tuple[str, Dict[str, Any], List[str]]:
-        sum_data = DeterministicReconciliationEngine.compute_summary(db, merchant_id=merchant_id)
-        data = {
-            "total_records": sum_data.total_records,
-            "match_rate": f"{sum_data.match_rate_percentage}%",
-            "total_discrepancy": f"₹{sum_data.total_discrepancy_amount:,.2f}",
-            "total_unresolved": f"₹{sum_data.total_unresolved_amount:,.2f}",
-            "exceptions_count": sum_data.exception_count,
-            "missing_bank_count": sum_data.missing_bank_count,
-            "missing_settlement_count": sum_data.missing_settlement_count,
-            "operational_warnings": sum_data.operational_warnings_count,
-        }
-        return "GET_RECONCILIATION_SUMMARY", data, ["reconciliation_results"]
+            return (
+                "GET_OVERVIEW_WITH_EXCEPTIONS",
+                {
+                    "total_records": summary.total_records,
+                    "match_rate": f"{summary.match_rate_percentage}%",
+                    "total_discrepancy": f"₹{summary.total_discrepancy_amount}",
+                    "total_unresolved": f"₹{summary.total_unresolved_amount}",
+                    "sample_exceptions": sample_list,
+                },
+                sources
+            )
 
-    def _tool_get_largest_discrepancies(self, db: Session, limit: int = 5) -> tuple[str, Dict[str, Any], List[str]]:
-        results = db.query(ReconciliationResult).filter(
-            ReconciliationResult.discrepancy_amount != Decimal("0.00")
-        ).order_by(ReconciliationResult.discrepancy_amount.desc()).limit(limit).all()
-
-        items = []
-        sources = []
-        for r in results:
-            items.append({
-                "reconciliation_id": r.id,
-                "payment_id": r.payment_id,
-                "discrepancy": f"₹{r.discrepancy_amount:,.2f}",
-                "classification": r.classification,
-                "status": r.status.value if hasattr(r.status, "value") else str(r.status),
-            })
-            sources.append(r.payment_id)
-
-        return "GET_LARGEST_DISCREPANCIES", {"top_discrepancies": items}, sources
-
-    def _tool_get_delayed_settlements(self, db: Session, limit: int = 5) -> tuple[str, Dict[str, Any], List[str]]:
-        results = db.query(ReconciliationResult).filter(
-            ReconciliationResult.operational_warning == "SETTLEMENT_DELAY"
-        ).limit(limit).all()
-
-        items = []
-        sources = []
-        for r in results:
-            items.append({
-                "reconciliation_id": r.id,
-                "payment_id": r.payment_id,
-                "settlement_id": r.settlement_id,
-                "expected_settlement": f"₹{r.expected_settlement_amount:,.2f}",
-                "actual_settlement": f"₹{r.actual_settlement_amount:,.2f}" if r.actual_settlement_amount else "None",
-            })
-            sources.append(r.payment_id)
-
-        return "GET_DELAYED_SETTLEMENTS", {"delayed_settlements": items}, sources
-
-    def _tool_get_entity_detail(self, entity_id: str, db: Session) -> tuple[str, Dict[str, Any], List[str]]:
-        rec = None
-        if entity_id.startswith("rec_"):
-            rec = db.query(ReconciliationResult).filter(ReconciliationResult.id == entity_id).first()
-        elif entity_id.startswith("pay_"):
-            rec = db.query(ReconciliationResult).filter(ReconciliationResult.payment_id == entity_id).first()
-        elif entity_id.startswith("inv_"):
-            inv = db.query(InvestigationResult).filter(InvestigationResult.id == entity_id).first()
-            if inv:
-                rec = db.query(ReconciliationResult).filter(ReconciliationResult.id == inv.reconciliation_id).first()
-
-        if not rec:
-            return "GET_ENTITY_DETAIL", {"error": f"No records found matching ID '{entity_id}'"}, []
-
-        inv = db.query(InvestigationResult).filter(InvestigationResult.reconciliation_id == rec.id).first()
-        data = {
-            "reconciliation_id": rec.id,
-            "payment_id": rec.payment_id,
-            "status": rec.status.value if hasattr(rec.status, "value") else str(rec.status),
-            "classification": rec.classification,
-            "expected_settlement": f"₹{rec.expected_settlement_amount:,.2f}",
-            "actual_bank_credit": f"₹{rec.actual_bank_amount:,.2f}" if rec.actual_bank_amount else "None",
-            "discrepancy": f"₹{rec.discrepancy_amount:,.2f}",
-            "ai_investigation": {
-                "status": inv.investigation_status.value if (inv and hasattr(inv.investigation_status, "value")) else "NOT_INVESTIGATED",
-                "summary": inv.summary if inv else None,
-                "explanation": inv.explanation if inv else None,
-                "system_confidence": f"{inv.system_confidence}%" if inv else None,
-            } if inv else "Not investigated yet",
-        }
-        return "GET_ENTITY_DETAIL", data, [rec.id, rec.payment_id]
-
-    def _tool_get_summary_with_exceptions(self, db: Session, merchant_id: Optional[str]) -> tuple[str, Dict[str, Any], List[str]]:
-        sum_data = DeterministicReconciliationEngine.compute_summary(db, merchant_id=merchant_id)
-        exceptions = db.query(ReconciliationResult).filter(
-            ReconciliationResult.status != "MATCHED"
-        ).limit(3).all()
-
-        ex_list = [{"reconciliation_id": e.id, "payment_id": e.payment_id, "discrepancy": f"₹{e.discrepancy_amount:,.2f}", "classification": e.classification} for e in exceptions]
-
-        return "GET_OVERVIEW_WITH_EXCEPTIONS", {
-            "total_records": sum_data.total_records,
-            "match_rate": f"{sum_data.match_rate_percentage}%",
-            "total_discrepancy": f"₹{sum_data.total_discrepancy_amount:,.2f}",
-            "sample_exceptions": ex_list,
-        }, [e.payment_id for e in exceptions]
+        # 3. Default Summary Query
+        summary = DeterministicReconciliationEngine.compute_summary(db=db, merchant_id=merchant_id)
+        return (
+            "GET_RECONCILIATION_SUMMARY",
+            {
+                "total_records": summary.total_records,
+                "matched_count": summary.matched_count,
+                "exception_count": summary.exception_count,
+                "match_rate": f"{summary.match_rate_percentage}%",
+                "total_expected": f"₹{summary.total_expected_amount}",
+                "total_actual": f"₹{summary.total_actual_amount}",
+            },
+            sources
+        )
