@@ -163,7 +163,7 @@ def load_demo_dataset(
         investigator = FinancialAIInvestigator()
         exceptions = db.query(ReconciliationResult).filter(
             ReconciliationResult.status != ReconciliationStatus.MATCHED
-        ).limit(10).all()
+        ).limit(2).all()
 
         for ex in exceptions:
             try:
