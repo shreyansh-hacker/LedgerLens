@@ -56,7 +56,7 @@ class IsolationForestAnomalyDetector:
             n_estimators=self.n_estimators,
             max_samples="auto",
             random_state=self.random_state,
-            n_jobs=-1,
+            n_jobs=1,
         )
 
     def fit_and_score(
