@@ -23,19 +23,23 @@ class DatabaseSeeder:
 
     @staticmethod
     def reset_database(db: Session) -> None:
-        """Deletes all table records in strict reverse-dependency order."""
-        db.query(AuditLog).delete()
-        db.query(InvestigationResult).delete()
-        db.query(AnomalyResult).delete()
-        db.query(ReconciliationResult).delete()
-        db.query(BankTransaction).delete()
-        db.query(Settlement).delete()
-        db.query(Refund).delete()
-        db.query(Tax).delete()
-        db.query(Fee).delete()
-        db.query(Payment).delete()
-        db.query(Order).delete()
-        db.query(Merchant).delete()
+        """Deletes all table records in strict reverse-dependency order with zero ORM session sync overhead."""
+        models = [
+            AuditLog,
+            InvestigationResult,
+            AnomalyResult,
+            ReconciliationResult,
+            BankTransaction,
+            Settlement,
+            Refund,
+            Tax,
+            Fee,
+            Payment,
+            Order,
+            Merchant,
+        ]
+        for model in models:
+            db.query(model).delete(synchronize_session=False)
         db.commit()
 
     @staticmethod

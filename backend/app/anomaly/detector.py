@@ -140,7 +140,7 @@ class IsolationForestAnomalyDetector:
         raw_scores, normalized_scores, preds = self.fit_and_score(feature_matrix)
 
         if clear_existing:
-            db.query(AnomalyResult).delete()
+            db.query(AnomalyResult).delete(synchronize_session=False)
             db.commit()
 
         anomaly_records: List[AnomalyResult] = []

@@ -88,10 +88,8 @@ class DeterministicReconciliationEngine:
 
         # Clear existing reconciliation results and dependent records in reverse-dependency order
         if clear_existing:
-            db.query(AuditLog).delete()
-            db.query(InvestigationResult).delete()
-            db.query(AnomalyResult).delete()
-            db.query(ReconciliationResult).delete()
+            for model in [AuditLog, InvestigationResult, AnomalyResult, ReconciliationResult]:
+                db.query(model).delete(synchronize_session=False)
             db.commit()
 
         results_to_insert: List[ReconciliationResult] = []
