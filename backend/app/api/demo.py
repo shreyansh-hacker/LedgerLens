@@ -140,58 +140,67 @@ def load_demo_dataset(
             },
         )
 
-    t0 = time.perf_counter()
+    try:
+        t0 = time.perf_counter()
 
-    # 2. Generate synthetic dataset
-    engine = SyntheticFinancialDataEngine(seed=seed)
-    dataset = engine.generate_dataset(num_clusters=num_clusters)
+        # 2. Generate synthetic dataset
+        engine = SyntheticFinancialDataEngine(seed=seed)
+        dataset = engine.generate_dataset(num_clusters=num_clusters)
 
-    # 3. Seed database
-    DatabaseSeeder.seed(db=db, dataset=dataset, clear_existing=True)
+        # 3. Seed database
+        DatabaseSeeder.seed(db=db, dataset=dataset, clear_existing=True)
 
-    # 4. Run deterministic reconciliation
-    rec_engine = DeterministicReconciliationEngine()
-    rec_res = rec_engine.reconcile_all(db=db, clear_existing=True)
+        # 4. Run deterministic reconciliation
+        rec_engine = DeterministicReconciliationEngine()
+        rec_res = rec_engine.reconcile_all(db=db, clear_existing=True)
 
-    # 5. Run ML Anomaly Detection
-    anom_detector = IsolationForestAnomalyDetector(random_state=seed)
-    anom_res = anom_detector.run_detection(db=db, clear_existing=True)
+        # 5. Run ML Anomaly Detection
+        anom_detector = IsolationForestAnomalyDetector(random_state=seed)
+        anom_res = anom_detector.run_detection(db=db, clear_existing=True)
 
-    # 6. Pre-run AI on sample exceptions for instant demo experience
-    investigations_count = 0
-    if preload_ai:
-        investigator = FinancialAIInvestigator()
-        exceptions = db.query(ReconciliationResult).filter(
-            ReconciliationResult.status != ReconciliationStatus.MATCHED
-        ).limit(2).all()
+        # 6. Pre-run AI on sample exceptions for instant demo experience
+        investigations_count = 0
+        if preload_ai:
+            investigator = FinancialAIInvestigator()
+            exceptions = db.query(ReconciliationResult).filter(
+                ReconciliationResult.status != ReconciliationStatus.MATCHED
+            ).limit(2).all()
 
-        for ex in exceptions:
-            try:
-                investigator.investigate(reconciliation_id=ex.id, db=db)
-                investigations_count += 1
-            except Exception:
-                pass
+            for ex in exceptions:
+                try:
+                    investigator.investigate(reconciliation_id=ex.id, db=db)
+                    investigations_count += 1
+                except Exception:
+                    pass
 
-    total_duration_ms = (time.perf_counter() - t0) * 1000.0
+        total_duration_ms = (time.perf_counter() - t0) * 1000.0
 
-    return DemoLoadResponse(
-        status="success",
-        num_clusters=num_clusters,
-        records_loaded=len(dataset["payments"]),
-        reconciled_count=rec_res.processed_count,
-        anomalies_detected=anom_res.anomalies_found,
-        investigations_preloaded=investigations_count,
-        duration_ms=round(total_duration_ms, 2),
-        cached=False,
-        summary={
-            "match_rate": f"{rec_res.summary.match_rate_percentage}%",
-            "matched_count": rec_res.summary.matched_count,
-            "exception_count": rec_res.summary.exception_count,
-            "total_discrepancy": str(rec_res.summary.total_discrepancy_amount),
-            "unresolved_amount": str(rec_res.summary.total_unresolved_amount),
-            "anomalies_count": anom_res.anomalies_found,
-        },
-    )
+        return DemoLoadResponse(
+            status="success",
+            num_clusters=num_clusters,
+            records_loaded=len(dataset["payments"]),
+            reconciled_count=rec_res.processed_count,
+            anomalies_detected=anom_res.anomalies_found,
+            investigations_preloaded=investigations_count,
+            duration_ms=round(total_duration_ms, 2),
+            cached=False,
+            summary={
+                "match_rate": f"{rec_res.summary.match_rate_percentage}%",
+                "matched_count": rec_res.summary.matched_count,
+                "exception_count": rec_res.summary.exception_count,
+                "total_discrepancy": str(rec_res.summary.total_discrepancy_amount),
+                "unresolved_amount": str(rec_res.summary.total_unresolved_amount),
+                "anomalies_count": anom_res.anomalies_found,
+            },
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Demo initialization failed: {type(e).__name__}: {str(e)}"
+        )
 
 
 @router.post("/reset")
