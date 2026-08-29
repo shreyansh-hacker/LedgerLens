@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://ledger-lens-hazel.vercel.app",
         "https://ledgerlens.vercel.app",
-        "https://*.vercel.app",
     ]
     
     @field_validator("CORS_ORIGINS", mode="before")
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     
     # AI Engine - Groq Cloud API
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
     
     # Optional Supabase Integration
     SUPABASE_URL: str = ""

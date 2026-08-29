@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, List
 from app.models.schema import (
     Merchant,
     Order,
@@ -18,7 +18,7 @@ from app.core.database import Base, engine
 
 
 class DatabaseSeeder:
-    """Inserts synthetic dataset into database tables via SQLAlchemy ORM."""
+    """Inserts synthetic dataset into database tables via SQLAlchemy ORM with fast batched operations."""
 
     @staticmethod
     def reset_database(db: Session) -> None:
@@ -47,38 +47,38 @@ class DatabaseSeeder:
             DatabaseSeeder.reset_database(db)
 
         # 1. Merchants
-        for m in dataset.get("merchants", []):
-            db.add(Merchant(**m))
-        db.commit()
+        merchants = [Merchant(**m) for m in dataset.get("merchants", [])]
+        if merchants:
+            db.add_all(merchants)
 
         # 2. Orders
-        for o in dataset.get("orders", []):
-            db.add(Order(**o))
-        db.commit()
+        orders = [Order(**o) for o in dataset.get("orders", [])]
+        if orders:
+            db.add_all(orders)
 
         # 3. Payments
-        for p in dataset.get("payments", []):
-            db.add(Payment(**p))
-        db.commit()
+        payments = [Payment(**p) for p in dataset.get("payments", [])]
+        if payments:
+            db.add_all(payments)
 
         # 4. Fees
-        for f in dataset.get("fees", []):
-            db.add(Fee(**f))
-        db.commit()
+        fees = [Fee(**f) for f in dataset.get("fees", [])]
+        if fees:
+            db.add_all(fees)
 
         # 5. Taxes
-        for t in dataset.get("taxes", []):
-            db.add(Tax(**t))
-        db.commit()
+        taxes = [Tax(**t) for t in dataset.get("taxes", [])]
+        if taxes:
+            db.add_all(taxes)
 
         # 6. Refunds
-        for r in dataset.get("refunds", []):
-            db.add(Refund(**r))
-        db.commit()
+        refunds = [Refund(**r) for r in dataset.get("refunds", [])]
+        if refunds:
+            db.add_all(refunds)
 
         # 7. Settlements
-        for s in dataset.get("settlements", []):
-            db.add(Settlement(
+        settlements = [
+            Settlement(
                 id=s["id"],
                 payment_id=s["payment_id"] if not s["payment_id"].startswith("pay_unknown") else None,
                 settlement_reference=s["settlement_reference"],
@@ -89,22 +89,26 @@ class DatabaseSeeder:
                 currency=s["currency"],
                 status=s["status"],
                 settled_at=s["settled_at"],
-            ))
-        db.commit()
+            )
+            for s in dataset.get("settlements", [])
+        ]
+        if settlements:
+            db.add_all(settlements)
 
         # 8. Bank Transactions
-        for b in dataset.get("bank_transactions", []):
-            db.add(BankTransaction(**b))
+        bank_txns = [BankTransaction(**b) for b in dataset.get("bank_transactions", [])]
+        if bank_txns:
+            db.add_all(bank_txns)
+
         db.commit()
 
         return {
-            "merchants": len(dataset.get("merchants", [])),
-            "orders": len(dataset.get("orders", [])),
-            "payments": len(dataset.get("payments", [])),
-            "fees": len(dataset.get("fees", [])),
-            "taxes": len(dataset.get("taxes", [])),
-            "refunds": len(dataset.get("refunds", [])),
-            "settlements": len(dataset.get("settlements", [])),
-            "bank_transactions": len(dataset.get("bank_transactions", [])),
-            "ground_truth_records": len(dataset.get("ground_truth", [])),
+            "merchants": len(merchants),
+            "orders": len(orders),
+            "payments": len(payments),
+            "fees": len(fees),
+            "taxes": len(taxes),
+            "refunds": len(refunds),
+            "settlements": len(settlements),
+            "bank_transactions": len(bank_txns),
         }

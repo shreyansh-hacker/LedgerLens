@@ -17,8 +17,8 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: qwen/qwen3.8-27b
       - key: CORS_ORIGINS
-        value: "https://ledgerlens.vercel.app,http://localhost:3000"
+        value: "https://ledger-lens-hazel.vercel.app,https://ledgerlens.vercel.app,http://localhost:3000"
       - key: PYTHON_VERSION
         value: 3.11.0
