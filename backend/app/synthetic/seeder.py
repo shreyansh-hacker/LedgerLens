@@ -15,7 +15,6 @@ from app.models.schema import (
     InvestigationResult,
     AuditLog,
 )
-from app.core.database import Base, engine
 
 
 class DatabaseSeeder:
@@ -24,7 +23,6 @@ class DatabaseSeeder:
     @staticmethod
     def reset_database(db: Session) -> None:
         """Deletes all table records in strict reverse-dependency order."""
-        Base.metadata.create_all(bind=engine)
         db.query(AuditLog).delete()
         db.query(InvestigationResult).delete()
         db.query(AnomalyResult).delete()
@@ -41,9 +39,6 @@ class DatabaseSeeder:
 
     @staticmethod
     def seed(db: Session, dataset: Dict[str, Any], clear_existing: bool = True) -> Dict[str, int]:
-        # Ensure schema tables exist
-        Base.metadata.create_all(bind=engine)
-
         if clear_existing:
             DatabaseSeeder.reset_database(db)
 
