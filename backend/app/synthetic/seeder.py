@@ -77,11 +77,12 @@ class DatabaseSeeder:
         if refunds:
             db.execute(insert(Refund), refunds)
 
-        # 7. Settlements
+        # 7. Settlements (Strict Foreign Key validation for PostgreSQL)
+        valid_pay_ids = {p["id"] for p in payments}
         settlements = [
             {
                 "id": s["id"],
-                "payment_id": s["payment_id"] if not s["payment_id"].startswith("pay_unknown") else None,
+                "payment_id": s["payment_id"] if s.get("payment_id") in valid_pay_ids else None,
                 "settlement_reference": s["settlement_reference"],
                 "gross_amount": s["gross_amount"],
                 "fee_amount": s["fee_amount"],
@@ -96,8 +97,21 @@ class DatabaseSeeder:
         if settlements:
             db.execute(insert(Settlement), settlements)
 
-        # 8. Bank Transactions
-        bank_txns = dataset.get("bank_transactions", [])
+        # 8. Bank Transactions (Strict Foreign Key validation for PostgreSQL)
+        valid_set_ids = {s["id"] for s in settlements}
+        bank_txns = [
+            {
+                "id": b["id"],
+                "settlement_id": b["settlement_id"] if b.get("settlement_id") in valid_set_ids else None,
+                "bank_reference": b["bank_reference"],
+                "utr_number": b.get("utr_number"),
+                "credit_amount": b["credit_amount"],
+                "currency": b["currency"],
+                "status": b["status"],
+                "credited_at": b["credited_at"],
+            }
+            for b in dataset.get("bank_transactions", [])
+        ]
         if bank_txns:
             db.execute(insert(BankTransaction), bank_txns)
 
