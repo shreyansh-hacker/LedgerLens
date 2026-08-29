@@ -230,7 +230,7 @@ export async function getDemoStatus(): Promise<DemoStatus> {
 }
 
 export async function loadDemoDataset(
-  numClusters = 1000,
+  numClusters = 100,
   seed = 42,
   forceReset = false,
   preloadAi = true

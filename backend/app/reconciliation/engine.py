@@ -254,6 +254,7 @@ class DeterministicReconciliationEngine:
         ]
         db.add_all(orm_results)
         db.commit()
+        db.expunge_all()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         summary = self.compute_summary(db, merchant_id=merchant_id)

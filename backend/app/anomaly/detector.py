@@ -197,6 +197,7 @@ class IsolationForestAnomalyDetector:
         ]
         db.add_all(orm_anomalies)
         db.commit()
+        db.expunge_all()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         summary = self.compute_summary(db)
