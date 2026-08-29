@@ -77,14 +77,26 @@ class DeterministicReconciliationEngine:
 
         all_settlements = db.query(Settlement).all()
         settlements_by_payment_id: Dict[str, List[Settlement]] = {}
+        settlements_by_ref: Dict[str, Settlement] = {}
+        unmatched_settlements_dict: Dict[str, Settlement] = {}
+
         for s in all_settlements:
+            unmatched_settlements_dict[s.id] = s
             if s.payment_id and not s.payment_id.startswith("pay_unknown"):
                 settlements_by_payment_id.setdefault(s.payment_id, []).append(s)
+            if s.settlement_reference:
+                clean = s.settlement_reference.replace("SET_", "").replace("PAY_", "")
+                settlements_by_ref[clean] = s
 
         all_bank_txns = db.query(BankTransaction).all()
         bank_by_settlement_id: Dict[str, BankTransaction] = {
             b.settlement_id: b for b in all_bank_txns if b.settlement_id
         }
+        bank_by_reference: Dict[str, BankTransaction] = {}
+        for b in all_bank_txns:
+            if b.bank_reference:
+                clean_b = b.bank_reference.replace("TXN_", "").replace("SET_", "")
+                bank_by_reference[clean_b] = b
 
         # Clear existing reconciliation results and dependent records in reverse-dependency order
         if clear_existing:
@@ -92,8 +104,7 @@ class DeterministicReconciliationEngine:
                 db.query(model).delete(synchronize_session=False)
             db.commit()
 
-        results_to_insert: List[ReconciliationResult] = []
-        matched_settlement_ids = set()
+        results_to_insert: List[Dict[str, Any]] = []
 
         for pay in payments:
             order = orders_by_id.get(pay.order_id)
@@ -101,8 +112,8 @@ class DeterministicReconciliationEngine:
             taxes = taxes_by_payment_id.get(pay.id, [])
             refunds = refunds_by_payment_id.get(pay.id, [])
 
-            # Match settlement
-            unmatched_settlements = [s for s in all_settlements if s.id not in matched_settlement_ids]
+            # Match settlement with indexed lookup
+            unmatched_list = list(unmatched_settlements_dict.values())
             (
                 settlement,
                 duplicate_settlements,
@@ -112,14 +123,15 @@ class DeterministicReconciliationEngine:
                 competing_candidates,
             ) = self.matcher.match_payment_to_settlements(
                 payment=pay,
-                unmatched_settlements=unmatched_settlements,
-                all_settlements_by_payment_id=settlements_by_payment_id
+                unmatched_settlements=unmatched_list,
+                all_settlements_by_payment_id=settlements_by_payment_id,
+                settlements_by_ref=settlements_by_ref,
             )
 
             if settlement:
-                matched_settlement_ids.add(settlement.id)
+                unmatched_settlements_dict.pop(settlement.id, None)
             for d in duplicate_settlements:
-                matched_settlement_ids.add(d.id)
+                unmatched_settlements_dict.pop(d.id, None)
 
             # Match bank transaction
             (
@@ -130,7 +142,8 @@ class DeterministicReconciliationEngine:
             ) = self.matcher.match_settlement_to_bank(
                 settlement=settlement,
                 all_bank_transactions=all_bank_txns,
-                bank_by_settlement_id=bank_by_settlement_id
+                bank_by_settlement_id=bank_by_settlement_id,
+                bank_by_reference=bank_by_reference,
             )
 
             # Deterministic Calculations
