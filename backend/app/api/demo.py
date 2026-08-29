@@ -280,3 +280,33 @@ def get_featured_cases(db: Session = Depends(get_db)):
         ))
 
     return featured_list
+
+
+@router.get("/diagnostic/{step}")
+def run_diagnostic_step(step: int, db: Session = Depends(get_db)):
+    t0 = time.perf_counter()
+    if step == 1:
+        DatabaseSeeder.reset_database(db)
+        return {"step": 1, "status": "reset_success", "ms": round((time.perf_counter() - t0) * 1000, 2)}
+    elif step == 2:
+        engine = SyntheticFinancialDataEngine(seed=42)
+        dataset = engine.generate_dataset(num_clusters=1000)
+        res = DatabaseSeeder.seed(db=db, dataset=dataset, clear_existing=True)
+        return {"step": 2, "status": "seed_success", "counts": res, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+    elif step == 3:
+        rec_engine = DeterministicReconciliationEngine()
+        rec_res = rec_engine.reconcile_all(db=db, clear_existing=True)
+        return {"step": 3, "status": "reconcile_success", "processed": rec_res.processed_count, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+    elif step == 4:
+        anom_detector = IsolationForestAnomalyDetector(random_state=42)
+        anom_res = anom_detector.run_detection(db=db, clear_existing=True)
+        return {"step": 4, "status": "anom_success", "found": anom_res.anomalies_found, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+    elif step == 5:
+        ex = db.query(ReconciliationResult).filter(ReconciliationResult.status != ReconciliationStatus.MATCHED).first()
+        if not ex:
+            return {"step": 5, "status": "no_exceptions"}
+        inv = FinancialAIInvestigator()
+        res = inv.investigate(reconciliation_id=ex.id, db=db)
+        return {"step": 5, "status": "ai_success", "id": res.id, "summary": res.summary, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+    return {"step": step, "status": "unknown"}
+
