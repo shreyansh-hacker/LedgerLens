@@ -217,8 +217,10 @@ class DeterministicReconciliationEngine:
                 "reconciled_at": datetime.utcnow(),
             })
 
-        if results_to_insert:
-            db.execute(insert(ReconciliationResult), results_to_insert)
+        for i in range(0, len(results_to_insert), 500):
+            chunk = results_to_insert[i:i + 500]
+            if chunk:
+                db.execute(insert(ReconciliationResult).values(chunk))
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

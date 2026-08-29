@@ -19,7 +19,7 @@ from app.models.schema import (
 
 
 class DatabaseSeeder:
-    """Inserts synthetic dataset into database tables using high-performance multi-row bulk execution."""
+    """Inserts synthetic dataset into database tables using high-performance single-statement multi-row bulk execution."""
 
     @staticmethod
     def reset_database(db: Session) -> None:
@@ -49,7 +49,7 @@ class DatabaseSeeder:
 
         now = datetime.utcnow()
 
-        # 1. Merchants (Ensure all non-null columns populated)
+        # 1. Merchants
         merchants = [
             {
                 "id": m["id"],
@@ -61,9 +61,9 @@ class DatabaseSeeder:
             for m in dataset.get("merchants", [])
         ]
         if merchants:
-            db.execute(insert(Merchant), merchants)
+            db.execute(insert(Merchant).values(merchants))
 
-        # 2. Orders
+        # 2. Orders (Batch in chunks of 500 for optimal WAN packet size)
         orders = [
             {
                 "id": o["id"],
@@ -77,8 +77,10 @@ class DatabaseSeeder:
             }
             for o in dataset.get("orders", [])
         ]
-        if orders:
-            db.execute(insert(Order), orders)
+        for i in range(0, len(orders), 500):
+            chunk = orders[i:i + 500]
+            if chunk:
+                db.execute(insert(Order).values(chunk))
 
         # 3. Payments
         payments = [
@@ -95,8 +97,10 @@ class DatabaseSeeder:
             }
             for p in dataset.get("payments", [])
         ]
-        if payments:
-            db.execute(insert(Payment), payments)
+        for i in range(0, len(payments), 500):
+            chunk = payments[i:i + 500]
+            if chunk:
+                db.execute(insert(Payment).values(chunk))
 
         # 4. Fees
         fees = [
@@ -111,8 +115,10 @@ class DatabaseSeeder:
             }
             for f in dataset.get("fees", [])
         ]
-        if fees:
-            db.execute(insert(Fee), fees)
+        for i in range(0, len(fees), 500):
+            chunk = fees[i:i + 500]
+            if chunk:
+                db.execute(insert(Fee).values(chunk))
 
         # 5. Taxes
         taxes = [
@@ -127,8 +133,10 @@ class DatabaseSeeder:
             }
             for t in dataset.get("taxes", [])
         ]
-        if taxes:
-            db.execute(insert(Tax), taxes)
+        for i in range(0, len(taxes), 500):
+            chunk = taxes[i:i + 500]
+            if chunk:
+                db.execute(insert(Tax).values(chunk))
 
         # 6. Refunds
         refunds = [
@@ -143,10 +151,12 @@ class DatabaseSeeder:
             }
             for r in dataset.get("refunds", [])
         ]
-        if refunds:
-            db.execute(insert(Refund), refunds)
+        for i in range(0, len(refunds), 500):
+            chunk = refunds[i:i + 500]
+            if chunk:
+                db.execute(insert(Refund).values(chunk))
 
-        # 7. Settlements (Strict Foreign Key validation for PostgreSQL)
+        # 7. Settlements
         valid_pay_ids = {p["id"] for p in payments}
         settlements = [
             {
@@ -163,10 +173,12 @@ class DatabaseSeeder:
             }
             for s in dataset.get("settlements", [])
         ]
-        if settlements:
-            db.execute(insert(Settlement), settlements)
+        for i in range(0, len(settlements), 500):
+            chunk = settlements[i:i + 500]
+            if chunk:
+                db.execute(insert(Settlement).values(chunk))
 
-        # 8. Bank Transactions (Strict Foreign Key validation for PostgreSQL)
+        # 8. Bank Transactions
         valid_set_ids = {s["id"] for s in settlements}
         bank_txns = [
             {
@@ -181,8 +193,10 @@ class DatabaseSeeder:
             }
             for b in dataset.get("bank_transactions", [])
         ]
-        if bank_txns:
-            db.execute(insert(BankTransaction), bank_txns)
+        for i in range(0, len(bank_txns), 500):
+            chunk = bank_txns[i:i + 500]
+            if chunk:
+                db.execute(insert(BankTransaction).values(chunk))
 
         db.commit()
 

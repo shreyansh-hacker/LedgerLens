@@ -180,8 +180,10 @@ class IsolationForestAnomalyDetector:
                 "created_at": datetime.utcnow(),
             })
 
-        if anomaly_records:
-            db.execute(insert(AnomalyResult), anomaly_records)
+        for i in range(0, len(anomaly_records), 500):
+            chunk = anomaly_records[i:i + 500]
+            if chunk:
+                db.execute(insert(AnomalyResult).values(chunk))
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
