@@ -4,6 +4,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import insert
 from app.models.schema import (
     Payment,
     Order,
@@ -192,28 +193,28 @@ class DeterministicReconciliationEngine:
                 competing_candidates=competing_candidates,
             )
 
-            rec_res = ReconciliationResult(
-                id=f"rec_{pay.id.replace('pay_', '')}",
-                payment_id=pay.id,
-                order_id=order.id if order else None,
-                settlement_id=settlement.id if settlement else None,
-                bank_transaction_id=bank_txn.id if bank_txn else None,
-                expected_settlement_amount=calc_summary["expected_net_settlement"],
-                actual_settlement_amount=settlement.net_amount if settlement else None,
-                expected_bank_amount=calc_summary["expected_bank_amount"],
-                actual_bank_amount=bank_txn.credit_amount if bank_txn else None,
-                discrepancy_amount=disc_summary["discrepancy_amount"],
-                matching_score=Decimal(str(matching_score)),
-                matching_method=matching_method,
-                status=status,
-                classification=classification,
-                operational_warning=operational_warning,
-                evidence_payload=evidence.model_dump(),
-                reconciled_at=datetime.utcnow(),
-            )
-            results_to_insert.append(rec_res)
+            results_to_insert.append({
+                "id": f"rec_{pay.id.replace('pay_', '')}",
+                "payment_id": pay.id,
+                "order_id": order.id if order else None,
+                "settlement_id": settlement.id if settlement else None,
+                "bank_transaction_id": bank_txn.id if bank_txn else None,
+                "expected_settlement_amount": calc_summary["expected_net_settlement"],
+                "actual_settlement_amount": settlement.net_amount if settlement else None,
+                "expected_bank_amount": calc_summary["expected_bank_amount"],
+                "actual_bank_amount": bank_txn.credit_amount if bank_txn else None,
+                "discrepancy_amount": disc_summary["discrepancy_amount"],
+                "matching_score": Decimal(str(matching_score)),
+                "matching_method": matching_method,
+                "status": status,
+                "classification": classification,
+                "operational_warning": operational_warning,
+                "evidence_payload": evidence.model_dump(),
+                "reconciled_at": datetime.utcnow(),
+            })
 
-        db.add_all(results_to_insert)
+        if results_to_insert:
+            db.execute(insert(ReconciliationResult), results_to_insert)
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

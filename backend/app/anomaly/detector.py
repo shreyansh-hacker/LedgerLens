@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sqlalchemy.orm import Session
+from sqlalchemy import insert
 
 from app.models.schema import (
     Payment,
@@ -166,21 +167,21 @@ class IsolationForestAnomalyDetector:
                 normalized_score=norm_val,
             )
 
-            anom_res = AnomalyResult(
-                id=f"anom_{rec_id.replace('rec_', '')}",
-                reconciliation_id=rec_id,
-                raw_anomaly_score=Decimal(f"{raw_val:.5f}"),
-                normalized_score=Decimal(f"{norm_val:.2f}"),
-                severity=sev,
-                is_anomaly=is_anomaly,
-                detected_features=feature_dicts[i],
-                explanation_signals=signals,
-                model_version=self.model_version,
-                created_at=datetime.utcnow(),
-            )
-            anomaly_records.append(anom_res)
+            anomaly_records.append({
+                "id": f"anom_{rec_id.replace('rec_', '')}",
+                "reconciliation_id": rec_id,
+                "raw_anomaly_score": Decimal(f"{raw_val:.5f}"),
+                "normalized_score": Decimal(f"{norm_val:.2f}"),
+                "severity": sev,
+                "is_anomaly": is_anomaly,
+                "detected_features": feature_dicts[i],
+                "explanation_signals": signals,
+                "model_version": self.model_version,
+                "created_at": datetime.utcnow(),
+            })
 
-        db.add_all(anomaly_records)
+        if anomaly_records:
+            db.execute(insert(AnomalyResult), anomaly_records)
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
