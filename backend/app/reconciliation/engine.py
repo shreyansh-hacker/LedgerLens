@@ -15,6 +15,9 @@ from app.models.schema import (
     BankTransaction,
     ReconciliationResult,
     ReconciliationStatus,
+    AnomalyResult,
+    InvestigationResult,
+    AuditLog,
 )
 from app.reconciliation.calculator import FinancialCalculator, quantize_money
 from app.reconciliation.matching import MultiPassMatcher
@@ -83,8 +86,11 @@ class DeterministicReconciliationEngine:
             b.settlement_id: b for b in all_bank_txns if b.settlement_id
         }
 
-        # Clear existing reconciliation results if requested
+        # Clear existing reconciliation results and dependent records in reverse-dependency order
         if clear_existing:
+            db.query(AuditLog).delete()
+            db.query(InvestigationResult).delete()
+            db.query(AnomalyResult).delete()
             db.query(ReconciliationResult).delete()
             db.commit()
 

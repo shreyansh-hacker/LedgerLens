@@ -104,11 +104,11 @@ class DatabaseSeeder:
                 "id": b["id"],
                 "settlement_id": b["settlement_id"] if b.get("settlement_id") in valid_set_ids else None,
                 "bank_reference": b["bank_reference"],
-                "utr_number": b.get("utr_number"),
+                "account_number_mask": b.get("account_number_mask", "XX1234"),
                 "credit_amount": b["credit_amount"],
-                "currency": b["currency"],
-                "status": b["status"],
-                "credited_at": b["credited_at"],
+                "currency": b.get("currency", "INR"),
+                "utr_number": b.get("utr_number"),
+                "transaction_date": b.get("transaction_date", b.get("credited_at")),
             }
             for b in dataset.get("bank_transactions", [])
         ]
