@@ -1,11 +1,12 @@
 import time
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 
 from app.core.database import get_db
+from app.core.rate_limiter import demo_load_limiter, demo_reset_limiter
 from app.synthetic.generator import SyntheticFinancialDataEngine
 from app.synthetic.seeder import DatabaseSeeder
 from app.reconciliation.engine import DeterministicReconciliationEngine
@@ -98,6 +99,7 @@ def get_demo_status(db: Session = Depends(get_db)):
 
 @router.post("/load", response_model=DemoLoadResponse)
 def load_demo_dataset(
+    request: Request,
     num_clusters: int = Query(1000, ge=50, le=1000),
     seed: int = Query(42),
     force_reset: bool = Query(False, description="Force re-generation even if dataset already exists"),
@@ -109,6 +111,7 @@ def load_demo_dataset(
     1. If dataset already exists and force_reset=False, returns existing state in ~5ms.
     2. Otherwise, executes full pipeline: Synthetic Generation -> Database Seed -> Reconciliation -> ML Anomaly -> AI Pre-investigation.
     """
+    demo_load_limiter.check_rate_limit(request)
     # 1. Idempotency check
     existing_payments = db.query(Payment).count()
     existing_rec = db.query(ReconciliationResult).count()
@@ -192,10 +195,14 @@ def load_demo_dataset(
 
 
 @router.post("/reset")
-def reset_demo_database(db: Session = Depends(get_db)):
+def reset_demo_database(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """
     Safely resets all demo data, restoring an empty state.
     """
+    demo_reset_limiter.check_rate_limit(request)
     DatabaseSeeder.reset_database(db)
     return {"status": "success", "message": "Demo data reset successfully."}
 

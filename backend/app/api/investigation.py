@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from fastapi import APIRouter, Depends, Query, HTTPException, Body, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from app.core.database import get_db
+from app.core.rate_limiter import investigation_limiter
 from app.models.schema import (
     InvestigationResult,
     ReconciliationResult,
@@ -48,6 +49,7 @@ class AuditLogResponse(BaseModel):
 
 @router.post("/{reconciliation_id}/run", response_model=InvestigationItemResponse)
 def run_investigation_on_reconciliation(
+    request: Request,
     reconciliation_id: str,
     force: bool = Query(False, description="Force re-investigation bypassing cache"),
     db: Session = Depends(get_db)
@@ -55,6 +57,7 @@ def run_investigation_on_reconciliation(
     """
     Triggers evidence-first Groq AI investigation for a specific reconciliation result.
     """
+    investigation_limiter.check_rate_limit(request)
     investigator = FinancialAIInvestigator()
     try:
         inv = investigator.investigate(
