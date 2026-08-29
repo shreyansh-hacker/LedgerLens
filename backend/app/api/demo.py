@@ -98,7 +98,7 @@ def get_demo_status(db: Session = Depends(get_db)):
 
 @router.post("/load", response_model=DemoLoadResponse)
 def load_demo_dataset(
-    num_clusters: int = Query(1000, ge=50, le=5000),
+    num_clusters: int = Query(1000, ge=50, le=1000),
     seed: int = Query(42),
     force_reset: bool = Query(False, description="Force re-generation even if dataset already exists"),
     preload_ai: bool = Query(True, description="Pre-generate AI investigations for exceptions"),

@@ -6,17 +6,22 @@ import os
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "LedgerLens"
-    VERSION: str = "0.1.0"
+    VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     
     # API & Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     API_V1_PREFIX: str = "/api"
     
-    # CORS
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # CORS Configuration
+    CORS_ORIGINS: Union[List[str], str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://ledgerlens.vercel.app",
+        "https://*.vercel.app",
+    ]
     
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -27,18 +32,18 @@ class Settings(BaseSettings):
             return v
         return ["*"]
 
-    # Database
+    # Database (Defaults to SQLite for local development, PostgreSQL for Supabase/Render in production)
     DATABASE_URL: str = "sqlite:///./ledgerlens.db"
     
-    # AI - Groq (Phase 5)
+    # AI Engine - Groq Cloud API
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
-    # Supabase (Optional)
+    # Optional Supabase Integration
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     
-    # Razorpay (Optional)
+    # Optional Payment Gateway Integration (Razorpay)
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
 

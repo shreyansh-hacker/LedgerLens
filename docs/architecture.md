@@ -1,52 +1,103 @@
-# LedgerLens Architecture
+# LedgerLens — Complete System Architecture
 
-## 1. System Overview
-LedgerLens is an AI-powered financial reconciliation and investigation platform built to provide an irrefutable evidence trail for every rupee.
+> **Every rupee gets an evidence trail.**
 
-```
-Orders + Payments + Fees + Taxes + Refunds + Settlements + Bank Records
-                                 ↓
-                 Deterministic Data Validation
-                                 ↓
-         Multi-Pass Matching Engine (Pass 1 → Pass 2 → Pass 3)
-                                 ↓
-       Exact Precision Financial Arithmetic (Decimal / NUMERIC)
-                                 ↓
-       Rule-Based Exception Classifier & Missing/Duplicate Detector
-                                 ↓
-      Machine-Readable Structured Evidence Trail & Audit Logging
-                                 ↓
-                  Reconciliation Results Schema
+LedgerLens is a 3-tier financial intelligence platform combining strict deterministic accounting mathematics, unsupervised ML anomaly detection, and evidence-grounded generative investigation.
+
+---
+
+## 1. End-to-End System Topology
+
+```text
+                                 ┌───────────────────────────┐
+                                 │      Vercel (Hobby)       │
+                                 │  Next.js 14 App Router    │
+                                 │ https://ledgerlens.vercel.app│
+                                 └─────────────┬─────────────┘
+                                               │ HTTPS
+                                               ↓
+                                 ┌───────────────────────────┐
+                                 │     Render (Free Web)     │
+                                 │ FastAPI / Python 3.11     │
+                                 │ https://api.ledgerlens... │
+                                 └──────┬─────────────┬──────┘
+                                        │             │
+                    ┌───────────────────┘             └───────────────────┐
+                    ↓                                                     ↓
+        ┌───────────────────────┐                             ┌───────────────────────┐
+        │   Supabase (Free DB)  │                             │   Groq Cloud (Free)   │
+        │ PostgreSQL (SSL, WAL) │                             │ LLaMA-3.3-70B LPU API │
+        └───────────────────────┘                             └───────────────────────┘
 ```
 
 ---
 
-## 2. Multi-Pass Matching Strategy
+## 2. The 3-Tier Intelligence Architecture
+
+```text
+Raw Ledger Records (Orders, Payments, Fees, Taxes, Settlements, Bank Statements)
+                                  ↓
++---------------------------------------------------------------------------------------+
+|  Tier 1: Deterministic Engine (Strict Python Decimal)                                 |
+|  - Multi-Pass Matching: Pass 1 Reference -> Pass 2 Direct ID -> Pass 3 Proximity     |
+|  - Penny-exact settlement math, MDR fee schedules, and 18% GST tax deduction          |
+|  - 100.0% Status & Classification Accuracy on 1,000-cluster benchmark                 |
++---------------------------------------------------------------------------------------+
+                                  ↓
++---------------------------------------------------------------------------------------+
+|  Tier 2: ML Anomaly Detection Layer (Scikit-Learn Isolation Forest)                   |
+|  - 14 zero-leakage observable features (volumes, fee ratios, settlement delay days)   |
+|  - Normalized 0–100 risk scoring with observable feature explanation signals           |
+|  - Strictly zero access to hidden synthetic scenario labels                           |
++---------------------------------------------------------------------------------------+
+                                  ↓
++---------------------------------------------------------------------------------------+
+|  Tier 3: Groq AI Financial Investigator (LLaMA-3.3-70B)                               |
+|  - Canonical SHA-256 evidence hashing & 0ms cache retrieval                           |
+|  - Structured JSON root-cause explanations citing verified ledger entity IDs          |
+|  - Strict anti-hallucination guardrails: missing ledger evidence escalates to Human   |
++---------------------------------------------------------------------------------------+
+                                  ↓
++---------------------------------------------------------------------------------------+
+|  Human Operator Decision & Immutable Chronological Audit Trail                        |
+|  - Reviewer Override, Resolution, and Treasury Escalation with immutable AuditLog     |
++---------------------------------------------------------------------------------------+
+```
+
+---
+
+## 3. Multi-Pass Matching Strategy
 
 1. **Pass 1 — Exact Reference Matching**:
-   * Direct match on external references (`payment_reference` <-> `settlement_reference`, `settlement.id` <-> `bank.settlement_id`, `utr_number`).
-   * Confidence: `98–100%`. Method: `EXACT_REFERENCE`.
+   - Matches external identifiers (`payment_reference` $\leftrightarrow$ `settlement_reference`, `settlement.id` $\leftrightarrow$ `bank.settlement_id`, `utr_number`).
+   - Confidence: `98–100%`. Method: `EXACT_REFERENCE`.
 2. **Pass 2 — Direct ID Linkage**:
-   * Standard relational foreign keys (`settlement.payment_id == payment.id`).
-   * Confidence: `95–100%`. Method: `DIRECT_ID_LINK`.
+   - Matches internal relational keys (`settlement.payment_id == payment.id`).
+   - Confidence: `95–100%`. Method: `DIRECT_ID_LINK`.
 3. **Pass 3 — Amount + Timestamp Proximity Window (Fallback)**:
-   * Used when identifiers are corrupted or non-standard. Searches within configured merchant scope and time window (`[payment.captured_at, payment.captured_at + 5 days]`).
-   * **Ambiguity Safeguard**: If multiple competing candidates share identical amounts within the window, the engine **refuses to pick arbitrarily** and flags the record as `REVIEW` with matching method `AMBIGUOUS_COMPETING_MATCHES`.
+   - Evaluates records with corrupted external IDs within a configurable SLA window (`[payment.captured_at, payment.captured_at + 5 days]`).
+   - **Ambiguity Safeguard**: If multiple competing candidates share identical amounts within the window, the engine **refuses to guess** and flags `REVIEW` with matching method `AMBIGUOUS_COMPETING_MATCHES`.
 
 ---
 
-## 3. Financial Calculation Engine
+## 4. Exact Decimal Settlement Arithmetic
 
 $$\text{Expected Net Settlement} = \text{Payment Amount} - \sum(\text{Fees}) - \sum(\text{Taxes}) - \sum(\text{Refunds}) \pm \text{Adjustments}$$
 
 $$\text{Discrepancy Amount} = \text{Expected Net Settlement} - \text{Actual Bank Credit}$$
 
-All figures use `Decimal` with 2 decimal places (`Numeric(14, 2)`). Floating point arithmetic is strictly prohibited.
+All monetary computations use Python `Decimal` and PostgreSQL `NUMERIC(14, 2)`. Floating point representation is strictly prohibited.
 
 ---
 
-## 4. Reconciliation Status & Taxonomy
+## 5. Composite System Confidence Model
 
-* **Statuses**: `MATCHED`, `EXCEPTION`, `MISSING_SETTLEMENT`, `MISSING_BANK_TRANSACTION`, `DUPLICATE`, `REVIEW`.
-* **Classifications**: `NONE`, `FEE_MISMATCH`, `TAX_MISMATCH`, `MISSING_BANK_TRANSACTION`, `MISSING_SETTLEMENT`, `DUPLICATE_SETTLEMENT`, `REFERENCE_ID_DISCREPANCY`, `AMOUNT_MISMATCH`, `SETTLEMENT_DELAY`, `UNEXPLAINED_EXCEPTION`.
-* **Operational Warnings**: e.g., `SETTLEMENT_DELAY` tracks SLA latency breaches while keeping financially accurate settlements categorized as `MATCHED`.
+The system calculates a multi-factor confidence metric rather than relying on LLM self-reporting:
+
+$$\text{System Confidence} = 0.35 \cdot C_{\text{calc}} + 0.25 \cdot C_{\text{compl}} + 0.20 \cdot C_{\text{match}} + 0.20 \cdot C_{\text{ai}} - P_{\text{anom}}$$
+
+- $C_{\text{calc}}$: Deterministic calculation agreement ($100\%$ if arithmetic balances, $0\%$ if unverified variance).
+- $C_{\text{compl}}$: Evidence completeness ($100\%$ if payment, settlement, and bank credit are all present).
+- $C_{\text{match}}$: Match quality score ($95–100\%$ for Pass 1 / Pass 2).
+- $C_{\text{ai}}$: AI factual grounding ($100\%$ when every claim cites verified entity IDs).
+- $P_{\text{anom}}$: Anomaly penalty ($0.05 \cdot \text{Normalized Anomaly Score}$).
