@@ -180,10 +180,22 @@ class IsolationForestAnomalyDetector:
                 "created_at": datetime.utcnow(),
             })
 
-        for i in range(0, len(anomaly_records), 500):
-            chunk = anomaly_records[i:i + 500]
-            if chunk:
-                db.execute(insert(AnomalyResult).values(chunk))
+        orm_anomalies = [
+            AnomalyResult(
+                id=r["id"],
+                reconciliation_id=r["reconciliation_id"],
+                raw_anomaly_score=r["raw_anomaly_score"],
+                normalized_score=r["normalized_score"],
+                severity=r["severity"],
+                is_anomaly=r["is_anomaly"],
+                detected_features=r["detected_features"],
+                explanation_signals=r["explanation_signals"],
+                model_version=r["model_version"],
+                created_at=r["created_at"],
+            )
+            for r in anomaly_records
+        ]
+        db.add_all(orm_anomalies)
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

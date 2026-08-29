@@ -230,10 +230,29 @@ class DeterministicReconciliationEngine:
                 "reconciled_at": datetime.utcnow(),
             })
 
-        for i in range(0, len(results_to_insert), 500):
-            chunk = results_to_insert[i:i + 500]
-            if chunk:
-                db.execute(insert(ReconciliationResult).values(chunk))
+        orm_results = [
+            ReconciliationResult(
+                id=r["id"],
+                payment_id=r["payment_id"],
+                order_id=r["order_id"],
+                settlement_id=r["settlement_id"],
+                bank_transaction_id=r["bank_transaction_id"],
+                expected_settlement_amount=r["expected_settlement_amount"],
+                actual_settlement_amount=r["actual_settlement_amount"],
+                expected_bank_amount=r["expected_bank_amount"],
+                actual_bank_amount=r["actual_bank_amount"],
+                discrepancy_amount=r["discrepancy_amount"],
+                matching_score=r["matching_score"],
+                matching_method=r["matching_method"],
+                status=r["status"],
+                classification=r["classification"],
+                operational_warning=r["operational_warning"],
+                evidence_payload=r["evidence_payload"],
+                reconciled_at=r["reconciled_at"],
+            )
+            for r in results_to_insert
+        ]
+        db.add_all(orm_results)
         db.commit()
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
