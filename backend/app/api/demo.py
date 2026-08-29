@@ -1,97 +1,96 @@
+from datetime import datetime
 import time
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, ConfigDict
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.rate_limiter import demo_load_limiter, demo_reset_limiter
+from app.models.schema import (
+    Merchant,
+    Order,
+    Payment,
+    Settlement,
+    BankTransaction,
+    ReconciliationResult,
+    AnomalyResult,
+    InvestigationResult,
+    ReconciliationStatus,
+)
 from app.synthetic.generator import SyntheticFinancialDataEngine
 from app.synthetic.seeder import DatabaseSeeder
 from app.reconciliation.engine import DeterministicReconciliationEngine
 from app.anomaly.detector import IsolationForestAnomalyDetector
 from app.ai.investigator import FinancialAIInvestigator
-from app.models.schema import (
-    Payment,
-    ReconciliationResult,
-    ReconciliationStatus,
-    AnomalyResult,
-    InvestigationResult,
-)
+
 
 router = APIRouter(prefix="/demo", tags=["Demo Mode"])
 
 
 class DemoStatusResponse(BaseModel):
-    is_initialized: bool
-    total_records: int
-    matched_count: int
-    exception_count: int
-    anomalies_count: int
-    investigations_ready: int
-    demo_version: str = "v1.0"
-    seed: int = 42
-
-    model_config = ConfigDict(from_attributes=True)
+    is_initialized: bool = Field(..., description="Whether demo financial dataset is present")
+    total_records: int = Field(..., description="Total payment records in demo dataset")
+    matched_count: int = Field(..., description="Count of cleanly matched records")
+    exception_count: int = Field(..., description="Count of reconciliation exceptions")
+    anomalies_count: int = Field(..., description="Count of ML anomalies flagged")
+    investigations_ready: int = Field(..., description="Number of cached AI investigation reports")
+    demo_version: str = Field(default="v1.0", description="Demo engine version")
+    seed: int = Field(default=42, description="Active synthetic dataset seed")
 
 
 class DemoLoadResponse(BaseModel):
-    status: str = "success"
-    num_clusters: int = 1000
-    records_loaded: int = 1000
-    reconciled_count: int = 1000
-    anomalies_detected: int = 0
-    investigations_preloaded: int = 0
-    duration_ms: float = 0.0
-    cached: bool = False
-    summary: Dict[str, Any]
-
-    model_config = ConfigDict(from_attributes=True)
+    status: str
+    num_clusters: int
+    records_loaded: int
+    reconciled_count: int
+    anomalies_detected: int
+    investigations_preloaded: int
+    duration_ms: float
+    cached: bool
+    summary: dict
 
 
 class FeaturedCase(BaseModel):
-    id: str
     reconciliation_id: str
-    payment_id: str
-    payment_reference: Optional[str] = None
+    payment_reference: str
     classification: str
+    severity: str
     discrepancy_amount: str
-    reconciliation_status: str
-    confidence_tier: str
-    system_confidence: float
     headline: str
-    recommendation: str
-
-    model_config = ConfigDict(from_attributes=True)
+    quick_explanation: str
+    narrative_preview: str
 
 
 @router.get("/status", response_model=DemoStatusResponse)
 def get_demo_status(db: Session = Depends(get_db)):
     """
-    Checks if the demo dataset is already seeded, reconciled, and ready in the database.
+    Returns the current demo initialization status and dataset summary.
+    Allows UI to determine whether to prompt 1-click loading.
     """
-    payment_count = db.query(Payment).count()
+    payments_count = db.query(Payment).count()
     rec_count = db.query(ReconciliationResult).count()
-    anom_count = db.query(AnomalyResult).filter(AnomalyResult.is_anomaly == True).count()
-    inv_count = db.query(InvestigationResult).count()
-
-    matched = db.query(ReconciliationResult).filter(
+    matched_count = db.query(ReconciliationResult).filter(
         ReconciliationResult.status == ReconciliationStatus.MATCHED
     ).count()
-    exceptions = db.query(ReconciliationResult).filter(
+    exception_count = db.query(ReconciliationResult).filter(
         ReconciliationResult.status != ReconciliationStatus.MATCHED
     ).count()
+    anomalies_count = db.query(AnomalyResult).filter(
+        AnomalyResult.is_anomaly == True
+    ).count()
+    investigations_count = db.query(InvestigationResult).count()
 
-    is_ready = payment_count >= 50 and rec_count >= 50
+    is_init = payments_count > 0 and rec_count > 0
 
     return DemoStatusResponse(
-        is_initialized=is_ready,
-        total_records=rec_count,
-        matched_count=matched,
-        exception_count=exceptions,
-        anomalies_count=anom_count,
-        investigations_ready=inv_count,
+        is_initialized=is_init,
+        total_records=payments_count,
+        matched_count=matched_count,
+        exception_count=exception_count,
+        anomalies_count=anomalies_count,
+        investigations_ready=investigations_count,
         demo_version="v1.0",
         seed=42,
     )
@@ -248,35 +247,32 @@ def get_featured_cases(db: Session = Depends(get_db)):
 
     for rec in candidates:
         payment = db.query(Payment).filter(Payment.id == rec.payment_id).first()
-        inv = db.query(InvestigationResult).filter(InvestigationResult.reconciliation_id == rec.id).first()
+        if not payment:
+            continue
 
-        # Ensure investigation is computed
-        if not inv:
-            try:
-                inv = investigator.investigate(reconciliation_id=rec.id, db=db)
-            except Exception:
-                pass
+        # Get or generate investigation
+        try:
+            inv = investigator.investigate(reconciliation_id=rec.id, db=db)
+            narrative = inv.narrative
+            headline = inv.summary
+            explanation = inv.root_cause_hypothesis
+        except Exception:
+            narrative = f"Discrepancy of {rec.discrepancy_amount} detected during automated multi-way ledger reconciliation."
+            headline = f"{rec.classification} exception identified"
+            explanation = f"Variance of {rec.discrepancy_amount} between ledger and bank records."
 
-        headline = f"₹{abs(float(rec.discrepancy_amount)):.2f} discrepancy ({rec.classification.replace('_', ' ')})"
-        if rec.classification == "FEE_MISMATCH":
-            headline = f"Gateway Fee Mismatch (₹{abs(float(rec.discrepancy_amount)):.2f} variance)"
-        elif rec.classification == "MISSING_BANK_TRANSACTION":
-            headline = f"Missing Bank Credit (₹{float(rec.expected_settlement_amount):.2f} uncredited)"
-        elif rec.classification == "UNEXPLAINED_EXCEPTION":
-            headline = f"Unexplained Variance (₹{abs(float(rec.discrepancy_amount)):.2f} — Missing Evidence)"
+        anomaly = db.query(AnomalyResult).filter(AnomalyResult.reconciliation_id == rec.id).first()
+        severity = anomaly.severity.value if anomaly else "MEDIUM"
 
         featured_list.append(FeaturedCase(
-            id=inv.id if inv else f"inv_{rec.id}",
             reconciliation_id=rec.id,
-            payment_id=rec.payment_id,
-            payment_reference=payment.payment_reference if payment else rec.payment_id,
+            payment_reference=payment.payment_reference,
             classification=rec.classification,
+            severity=severity,
             discrepancy_amount=str(rec.discrepancy_amount),
-            reconciliation_status=rec.status,
-            confidence_tier=inv.confidence_tier if inv else "HIGH",
-            system_confidence=float(inv.system_confidence) if inv else 90.0,
             headline=headline,
-            recommendation=inv.recommended_action if inv else "HUMAN_REVIEW",
+            quick_explanation=explanation,
+            narrative_preview=narrative[:160] + "..." if len(narrative) > 160 else narrative,
         ))
 
     return featured_list
@@ -285,28 +281,38 @@ def get_featured_cases(db: Session = Depends(get_db)):
 @router.get("/diagnostic/{step}")
 def run_diagnostic_step(step: int, db: Session = Depends(get_db)):
     t0 = time.perf_counter()
-    if step == 1:
-        DatabaseSeeder.reset_database(db)
-        return {"step": 1, "status": "reset_success", "ms": round((time.perf_counter() - t0) * 1000, 2)}
-    elif step == 2:
-        engine = SyntheticFinancialDataEngine(seed=42)
-        dataset = engine.generate_dataset(num_clusters=1000)
-        res = DatabaseSeeder.seed(db=db, dataset=dataset, clear_existing=True)
-        return {"step": 2, "status": "seed_success", "counts": res, "ms": round((time.perf_counter() - t0) * 1000, 2)}
-    elif step == 3:
-        rec_engine = DeterministicReconciliationEngine()
-        rec_res = rec_engine.reconcile_all(db=db, clear_existing=True)
-        return {"step": 3, "status": "reconcile_success", "processed": rec_res.processed_count, "ms": round((time.perf_counter() - t0) * 1000, 2)}
-    elif step == 4:
-        anom_detector = IsolationForestAnomalyDetector(random_state=42)
-        anom_res = anom_detector.run_detection(db=db, clear_existing=True)
-        return {"step": 4, "status": "anom_success", "found": anom_res.anomalies_found, "ms": round((time.perf_counter() - t0) * 1000, 2)}
-    elif step == 5:
-        ex = db.query(ReconciliationResult).filter(ReconciliationResult.status != ReconciliationStatus.MATCHED).first()
-        if not ex:
-            return {"step": 5, "status": "no_exceptions"}
-        inv = FinancialAIInvestigator()
-        res = inv.investigate(reconciliation_id=ex.id, db=db)
-        return {"step": 5, "status": "ai_success", "id": res.id, "summary": res.summary, "ms": round((time.perf_counter() - t0) * 1000, 2)}
-    return {"step": step, "status": "unknown"}
-
+    try:
+        if step == 1:
+            DatabaseSeeder.reset_database(db)
+            return {"step": 1, "status": "reset_success", "ms": round((time.perf_counter() - t0) * 1000, 2)}
+        elif step == 2:
+            engine = SyntheticFinancialDataEngine(seed=42)
+            dataset = engine.generate_dataset(num_clusters=1000)
+            res = DatabaseSeeder.seed(db=db, dataset=dataset, clear_existing=True)
+            return {"step": 2, "status": "seed_success", "counts": res, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+        elif step == 3:
+            rec_engine = DeterministicReconciliationEngine()
+            rec_res = rec_engine.reconcile_all(db=db, clear_existing=True)
+            return {"step": 3, "status": "reconcile_success", "processed": rec_res.processed_count, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+        elif step == 4:
+            anom_detector = IsolationForestAnomalyDetector(random_state=42)
+            anom_res = anom_detector.run_detection(db=db, clear_existing=True)
+            return {"step": 4, "status": "anom_success", "found": anom_res.anomalies_found, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+        elif step == 5:
+            ex = db.query(ReconciliationResult).filter(ReconciliationResult.status != ReconciliationStatus.MATCHED).first()
+            if not ex:
+                return {"step": 5, "status": "no_exceptions"}
+            inv = FinancialAIInvestigator()
+            res = inv.investigate(reconciliation_id=ex.id, db=db)
+            return {"step": 5, "status": "ai_success", "id": res.id, "summary": res.summary, "ms": round((time.perf_counter() - t0) * 1000, 2)}
+        return {"step": step, "status": "unknown"}
+    except Exception as e:
+        import traceback
+        db.rollback()
+        return {
+            "step": step,
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error_msg": str(e),
+            "traceback": traceback.format_exc(),
+        }
