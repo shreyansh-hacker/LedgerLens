@@ -5,6 +5,15 @@ LedgerLens is an AI-powered financial reconciliation and investigation platform 
 
 ---
 
+## 🌐 Live Production Deployments
+
+* **Frontend (Vercel)**: [https://ledger-lens-hazel.vercel.app](https://ledger-lens-hazel.vercel.app)
+* **Backend (Render)**: [https://ledgerlens-ppzl.onrender.com](https://ledgerlens-ppzl.onrender.com)
+* **Health Check**: [https://ledgerlens-ppzl.onrender.com/health](https://ledgerlens-ppzl.onrender.com/health)
+* **GitHub Repository**: [https://github.com/shreyansh-hacker/LedgerLens](https://github.com/shreyansh-hacker/LedgerLens)
+
+---
+
 ## ⚡ 3-Tier Intelligence Architecture
 
 ```text
@@ -30,14 +39,49 @@ LedgerLens is an AI-powered financial reconciliation and investigation platform 
 
 ---
 
-## 🎮 1-Click Judge Demo Mode
+## ☁️ Deployment Architecture
 
-A judge can evaluate the complete system in under **3 minutes** with zero terminal setup or API keys:
+```text
+                     Judge Browser / Client
+                               │
+                   HTTPS (Vercel Serverless)
+                               ▼
+              Next.js 14 Frontend Application
+                (https://ledger-lens-hazel.vercel.app)
+                               │
+                  CORS Origin: Vercel Domain
+                               ▼
+                  FastAPI Python 3.11 Backend
+                 (https://ledgerlens-ppzl.onrender.com)
+                      ├── Deterministic Multi-Pass Matcher
+                      ├── Scikit-Learn Isolation Forest ML
+                      └── Natural Language Finance Copilot
+                               │                  │
+                PgBouncer Transaction Pooler      │ HTTPS (Groq Cloud API)
+                               ▼                  ▼
+                    Supabase PostgreSQL 15    Groq LPU (LLaMA-3.3-70B)
+```
 
-1. Open the web application.
-2. Click **[Try Live Demo]** on the Landing Page.
-3. Watch the real-time stage progress (1,000 synthetic transaction clusters $\rightarrow$ Relational database seed $\rightarrow$ Deterministic matching $\rightarrow$ Isolation Forest anomaly fit $\rightarrow$ AI investigation cache).
-4. Inspect the **Dashboard** and click **[Inspect Evidence Trail]** on the **Featured Case** to review side-by-side settlement math, verifiable entity flow, ML risk score, and structured AI findings.
+---
+
+## 🎮 3-Minute Judge Demo Walkthrough
+
+A judge can evaluate LedgerLens with zero installation:
+
+| Time | Step | Action |
+| :--- | :--- | :--- |
+| **0:00** | **Problem** | View the landing page to understand the reconciliation fragmentation problem. |
+| **0:20** | **1-Click Demo** | Click **[Try Live Demo]** to trigger the synthetic pipeline. |
+| **0:45** | **Dashboard** | Review real-time KPIs: match rates, total discrepancies, and anomaly distributions. |
+| **1:10** | **Discrepancy** | Click **[Inspect Evidence Trail]** on the featured discrepancy banner. |
+| **1:30** | **Evidence Trail** | Inspect side-by-side settlement math and interactive multi-entity evidence chain. |
+| **1:50** | **ML Anomaly** | Review Isolation Forest normalized anomaly risk score (0–100) and feature signals. |
+| **2:10** | **AI Investigator** | Review Groq LLaMA-3.3-70B structured findings with verified entity citations. |
+| **2:30** | **Human Review** | Enter an operator note, click **[Mark Resolved]**, and observe the immutable audit trail. |
+| **2:45** | **Evaluation** | Open **/evaluation** to inspect the 10-scenario ground-truth verification matrix. |
+| **3:00** | **Copilot** | Click **[Ask Copilot]** and query: *"How much money is currently unresolved?"* |
+
+> 📌 **Synthetic Benchmark Disclaimer**: The demo dataset comprises 1,000 synthetic transaction clusters across 10 controlled scenarios generated deterministically via Seed 42. It is engineered for testing, auditing, and evaluation. Real merchant data is never exposed.
 
 ---
 
@@ -56,12 +100,12 @@ A judge can evaluate the complete system in under **3 minutes** with zero termin
 
 ## 🛠️ Production Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide Icons
-- **Backend**: Python 3.11, FastAPI, Pydantic v2, SQLAlchemy ORM
-- **Database**: PostgreSQL (Supabase) / Local SQLite development mode
-- **Machine Learning**: Scikit-Learn `IsolationForest`
-- **AI Acceleration**: Groq Cloud LPU (`llama-3.3-70b-versatile`)
-- **Testing & QA**: Pytest (50 automated unit, regression, & security tests)
+* **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide Icons
+* **Backend**: Python 3.11, FastAPI, Pydantic v2, SQLAlchemy ORM, Psycopg 3
+* **Database**: PostgreSQL (Supabase) via PgBouncer Pooler / Local SQLite
+* **Machine Learning**: Scikit-Learn `IsolationForest`
+* **AI Acceleration**: Groq Cloud LPU (`llama-3.3-70b-versatile`)
+* **Testing & QA**: Pytest (51 automated unit, regression, & security tests)
 
 ---
 

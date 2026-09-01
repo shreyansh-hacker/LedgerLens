@@ -201,7 +201,7 @@ export default function DashboardPage() {
                     {featuredCases[0].headline}
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl">
-                    Payment reference <code className="font-mono text-indigo-600 dark:text-indigo-400">{featuredCases[0].payment_reference}</code> has an observable variance with {featuredCases[0].system_confidence.toFixed(1)}% system confidence.
+                    Payment reference <code className="font-mono text-indigo-600 dark:text-indigo-400">{featuredCases[0].payment_reference}</code> has an observable variance with {featuredCases[0].system_confidence ? `${featuredCases[0].system_confidence.toFixed(1)}% system confidence` : "verified evidence"}.
                   </p>
                 </div>
 

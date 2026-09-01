@@ -4,29 +4,20 @@ This document describes the design, architecture, and operational lifecycle of t
 
 ---
 
-## 1. Primary Demo Experience (2–3 Minutes)
+## 1. 3-Minute Judge Walkthrough Script
 
-A judge can evaluate the complete system without installing dependencies, running terminal commands, preparing CSVs, or configuring API credentials:
-
-```text
-Landing Page (/)
-      ↓
-Click [Try Live Demo]
-      ↓
-Modal: Backend wake-up & real-time stage progress
-      ↓
-1,000 Synthetic Transactions Generated (Seed: 42)
-      ↓
-Multi-Pass Deterministic Reconciliation Executed
-      ↓
-Isolation Forest Anomaly Scoring Fitted
-      ↓
-Groq AI Investigator Pre-generates Grounded Explanations
-      ↓
-Dashboard Opens with Live KPIs & "Start Exploring" Featured Case
-      ↓
-Judge Clicks [Inspect Evidence Trail] to view Hero Workspace
-```
+| Timestamp | Screen / Action | What the Judge Sees & Learns |
+| :--- | :--- | :--- |
+| **0:00 — Problem** | Landing Page (`/`) | **Problem**: In high-volume e-commerce, payment reconciliation is fragmented across gateway webhooks, settlement batches, and nodal bank statements. Unannounced fee tier changes, missing 18% GST deductions, and missing bank credits create massive financial leaks. |
+| **0:20 — Live Demo** | Click `[Try Live Demo]` | **Zero-Setup Demo**: The system instantly generates synthetic transaction clusters spanning 10 controlled scenarios, seeds the database, executes 3-pass reconciliation, fits Isolation Forest ML, and preloads AI investigations. |
+| **0:45 — Dashboard** | Dashboard (`/dashboard`) | **Real-Time KPIs**: Records processed, 70.0% clean match rate, total discrepancy amounts, and ML anomaly severity profiles—grounded in real database calculations. |
+| **1:10 — Discrepancy** | "Start Exploring" Banner | Click `[Inspect Evidence Trail]` on the recommended featured discrepancy (e.g. `rec_00006`). |
+| **1:30 — Evidence Trail** | Investigation Workspace | **Verifiable Evidence Chain**: Side-by-side settlement math card showing Customer Gross Payment minus Gateway Fee minus 18% GST equals Expected Settlement, contrasted against Actual Bank Credit. |
+| **1:50 — ML Anomaly** | ML Risk Card | **Zero-Leakage ML**: Scikit-Learn Isolation Forest scores the transaction across 14 observable features (e.g. fee ratio surges, latency), flagging population outliers without seeing synthetic labels. |
+| **2:10 — AI Investigator** | AI Investigation Report | **Evidence-Grounded AI**: Groq LLaMA-3.3-70B explains root cause citing explicit entity IDs (`pay_*`, `fee_*`, `set_*`). Zero hallucination: if ledger evidence is missing, it refuses to guess and calls out missing records. |
+| **2:30 — Human Review** | Review Panel & Audit Trail | **Human Decision & Compliance**: Operator inputs a review note, marks as `RESOLVED` or `ESCALATE`, appending an immutable audit trail entry. |
+| **2:45 — Evaluation** | Benchmark (`/evaluation`) | **Ground-Truth Matrix**: Independent verification matrix proving 100.0% deterministic status accuracy across all 10 scenarios and sub-second inference speeds. |
+| **3:00 — Why LedgerLens** | Navbar / About (`/about`) | **The Winning Difference**: Deterministic exact math for rupees + Unsupervised ML for population anomalies + Grounded AI for root-cause explanations + Complete Human Control. |
 
 ---
 

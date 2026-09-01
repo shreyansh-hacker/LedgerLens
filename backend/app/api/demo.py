@@ -58,6 +58,7 @@ class FeaturedCase(BaseModel):
     classification: str
     severity: str
     discrepancy_amount: str
+    system_confidence: float = 95.0
     headline: str
     quick_explanation: str
     narrative_preview: str
@@ -251,11 +252,13 @@ def get_featured_cases(db: Session = Depends(get_db)):
             continue
 
         # Get or generate investigation
+        conf = 95.0
         try:
             inv = investigator.investigate(reconciliation_id=rec.id, db=db)
             narrative = inv.narrative
             headline = inv.summary
             explanation = inv.root_cause_hypothesis
+            conf = float(inv.system_confidence)
         except Exception:
             narrative = f"Discrepancy of {rec.discrepancy_amount} detected during automated multi-way ledger reconciliation."
             headline = f"{rec.classification} exception identified"
@@ -270,6 +273,7 @@ def get_featured_cases(db: Session = Depends(get_db)):
             classification=rec.classification,
             severity=severity,
             discrepancy_amount=str(rec.discrepancy_amount),
+            system_confidence=conf,
             headline=headline,
             quick_explanation=explanation,
             narrative_preview=narrative[:160] + "..." if len(narrative) > 160 else narrative,

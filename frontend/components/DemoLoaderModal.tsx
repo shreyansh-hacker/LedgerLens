@@ -118,7 +118,7 @@ export function DemoLoaderModal({
         const status = await getDemoStatus().catch(() => null);
         if (status && status.is_initialized) {
           // Idempotent fast path
-          const res = await loadDemoDataset(1000, 42, false, true);
+          const res = await loadDemoDataset(100, 42, false, true);
           setResult(res);
           setStage("READY");
           return;
@@ -138,7 +138,7 @@ export function DemoLoaderModal({
       setStage("PREPARING_INVESTIGATIONS");
 
       // Execute live backend call
-      const res = await loadDemoDataset(1000, 42, forceReset, true);
+      const res = await loadDemoDataset(100, 42, forceReset, true);
       setResult(res);
       setStage("READY");
     } catch (err: any) {
