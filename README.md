@@ -42,7 +42,7 @@ LedgerLens is an AI-powered financial reconciliation and investigation platform 
 ## ☁️ Deployment Architecture
 
 ```text
-                     Judge Browser / Client
+                     Web Browser / Client
                                │
                    HTTPS (Vercel Serverless)
                                ▼
@@ -64,27 +64,6 @@ LedgerLens is an AI-powered financial reconciliation and investigation platform 
 
 ---
 
-## 🎮 3-Minute Judge Demo Walkthrough
-
-A judge can evaluate LedgerLens with zero installation:
-
-| Time | Step | Action |
-| :--- | :--- | :--- |
-| **0:00** | **Problem** | View the landing page to understand the reconciliation fragmentation problem. |
-| **0:20** | **1-Click Demo** | Click **[Try Live Demo]** to trigger the synthetic pipeline. |
-| **0:45** | **Dashboard** | Review real-time KPIs: match rates, total discrepancies, and anomaly distributions. |
-| **1:10** | **Discrepancy** | Click **[Inspect Evidence Trail]** on the featured discrepancy banner. |
-| **1:30** | **Evidence Trail** | Inspect side-by-side settlement math and interactive multi-entity evidence chain. |
-| **1:50** | **ML Anomaly** | Review Isolation Forest normalized anomaly risk score (0–100) and feature signals. |
-| **2:10** | **AI Investigator** | Review Groq LLaMA-3.3-70B structured findings with verified entity citations. |
-| **2:30** | **Human Review** | Enter an operator note, click **[Mark Resolved]**, and observe the immutable audit trail. |
-| **2:45** | **Evaluation** | Open **/evaluation** to inspect the 10-scenario ground-truth verification matrix. |
-| **3:00** | **Copilot** | Click **[Ask Copilot]** and query: *"How much money is currently unresolved?"* |
-
-> 📌 **Synthetic Benchmark Disclaimer**: The demo dataset comprises 1,000 synthetic transaction clusters across 10 controlled scenarios generated deterministically via Seed 42. It is engineered for testing, auditing, and evaluation. Real merchant data is never exposed.
-
----
-
 ## 📊 Ground-Truth Benchmark Results (1,000 Clusters, Seed 42)
 
 | Engine Tier | Metric | Benchmark Result | Performance |
@@ -95,6 +74,8 @@ A judge can evaluate LedgerLens with zero installation:
 | **Tier 2: ML Anomaly** | Mean Population Score | **19.98 / 100** | 14 Observable Features |
 | **Tier 3: Groq AI** | Fact Grounding Rate | **100.00% (0 Hallucinations)** | ~650 ms inference |
 | **Tier 3: Groq AI** | Schema Validity | **100.00% Strict JSON** | 0.0 ms cache hit |
+
+> 📌 **Synthetic Benchmark Disclaimer**: The benchmark dataset comprises 1,000 synthetic transaction clusters across 10 controlled scenarios generated deterministically via Seed 42. It is engineered for testing, auditing, and evaluation. Real merchant data is never exposed.
 
 ---
 
